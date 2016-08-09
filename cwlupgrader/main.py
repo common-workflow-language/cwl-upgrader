@@ -1,6 +1,6 @@
 from __future__ import print_function
 import ruamel.yaml
-from typing import Any
+from typing import Any, Dict
 from collections import MutableMapping
 import sys
 
@@ -16,16 +16,17 @@ def draft3_to_v1_0(document):  # type: (Dict[unicode, Any]) -> None
     _draft3_to_v1_0(document)
     document['cwlVersion'] = 'v1.0'
 
-def _draft3_to_v1_0(document):  # type: (Dict[unicode, Any]) -> None
+def _draft3_to_v1_0(document):
+    # type: (Dict[unicode, Any]) -> Dict[unicode, Any]
     if "class" in document:
         if document["class"] == "Workflow":
             for out in document["outputs"]:
                 out["outputSource"] = out["source"]
                 del out["source"]
-        if document["class"] == "File":
+        elif document["class"] == "File":
             document["location"] = document["path"]
             del document["path"]
-        if document["class"] == "CreateFileRequirement":
+        elif document["class"] == "CreateFileRequirement":
             document["class"] = "InitialWorkDirRequirement"
             document["listing"] = []
             for filedef in document["fileDef"]:
@@ -34,6 +35,8 @@ def _draft3_to_v1_0(document):  # type: (Dict[unicode, Any]) -> None
                     "entry": filedef["fileContent"]
                 })
             del document["fileDef"]
+        elif document["class"] == "CommandLineTool":
+            setupCLTMappings(document)
 
     if "secondaryFiles" in document:
         for i, sf in enumerate(document["secondaryFiles"]):
@@ -48,6 +51,20 @@ def _draft3_to_v1_0(document):  # type: (Dict[unicode, Any]) -> None
     for key, value in document.items():
         if isinstance(value, MutableMapping):
             document[key] = _draft3_to_v1_0(value)
+
+    return document
+
+def setupCLTMappings(document):  # type: (Dict[unicode, Any]) -> None
+    for paramType in ['inputs', 'outputs']:
+        params = {}
+        for param in document[paramType]:
+            if len(param) == 2 and 'type' in param:
+                params[param['id']] = param['type']
+            else:
+                paramID = param['id']
+                del param['id']
+                params[paramID] = param
+        document[paramType] = params
 
 if __name__ == "__main__":
     sys.exit(main())
