@@ -69,7 +69,7 @@ def setupCLTMappings(document):  # type: (Dict[unicode, Any]) -> None
         document[paramType] = params
 
 def shortenType(typeObj):
-    # type: (List[Any]) -> Union[Unicode, List[Any]
+    # type: (List[Any]) -> Union[Unicode, List[Any]]
     if isinstance(typeObj, (str, unicode)) or not isinstance(typeObj, Sequence):
         return typeObj
     newType = []
