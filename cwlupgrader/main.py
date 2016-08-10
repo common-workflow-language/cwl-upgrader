@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function
 import ruamel.yaml
-from typing import Any, Dict
-from collections import Mapping, Sequence
+from typing import Any, Dict, Union
+from collections import Mapping, MutableMapping, Sequence
 import sys
 import copy
 
@@ -15,12 +15,12 @@ def main():  # type: () -> int
             print(ruamel.yaml.round_trip_dump(document))
     return 0
 
-def draft3_to_v1_0(document):  # type: (Dict[unicode, Any]) -> None
+def draft3_to_v1_0(document):  # type: (Dict[str, Any]) -> None
     _draft3_to_v1_0(document)
     document['cwlVersion'] = 'v1.0'
 
 def _draft3_to_v1_0(document):
-    # type: (Dict[unicode, Any]) -> Dict[unicode, Any]
+    # type: (MutableMapping[str, Any]) -> MutableMapping[str, Any]
     if "class" in document:
         if document["class"] == "Workflow":
             for out in document["outputs"]:
@@ -52,12 +52,12 @@ def _draft3_to_v1_0(document):
         del document["description"]
 
     for key, value in document.items():
-        if isinstance(value, Mapping):
+        if isinstance(value, MutableMapping):
             document[key] = _draft3_to_v1_0(value)
 
     return document
 
-def setupCLTMappings(document):  # type: (Dict[unicode, Any]) -> None
+def setupCLTMappings(document):  # type: (MutableMapping[str, Any]) -> None
     for paramType in ['inputs', 'outputs']:
         params = {}
         for param in document[paramType]:
@@ -71,7 +71,7 @@ def setupCLTMappings(document):  # type: (Dict[unicode, Any]) -> None
         document[paramType] = params
 
 def shortenType(typeObj):
-    # type: (List[Any]) -> Union[Unicode, List[Any]]
+    # type: (List[Any]) -> Union[str, List[Any]]
     if isinstance(typeObj, str) or not isinstance(typeObj, Sequence):
         return typeObj
     newType = []
