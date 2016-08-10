@@ -1,4 +1,6 @@
-from __future__ import print_function
+#!/usr/bin/env python
+
+from __future__ import print_function, unicode_literals
 import ruamel.yaml
 from typing import Any, Dict
 from collections import Mapping, Sequence
@@ -70,13 +72,13 @@ def setupCLTMappings(document):  # type: (Dict[unicode, Any]) -> None
 
 def shortenType(typeObj):
     # type: (List[Any]) -> Union[Unicode, List[Any]]
-    if isinstance(typeObj, (str, unicode)) or not isinstance(typeObj, Sequence):
+    if isinstance(typeObj, str) or not isinstance(typeObj, Sequence):
         return typeObj
     newType = []
     for entry in typeObj:  # find arrays that we can shorten and do so
         if isinstance(entry, Mapping):
             if (entry['type'] == 'array' and
-                    isinstance(entry['items'], (str, unicode))):
+                    isinstance(entry['items'], str)):
                 entry = entry['items'] + '[]'
         newType.extend([entry])
     typeObj = newType
@@ -84,7 +86,7 @@ def shortenType(typeObj):
         if 'null' in typeObj:
             typeCopy = copy.deepcopy(typeObj)
             typeCopy.remove('null')
-            if isinstance(typeCopy[0], (str, unicode)):
+            if isinstance(typeCopy[0], str):
                 return typeCopy[0] + '?'
     return typeObj
 

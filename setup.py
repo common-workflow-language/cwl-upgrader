@@ -10,7 +10,7 @@ SETUP_DIR = os.path.dirname(__file__)
 README = os.path.join(SETUP_DIR, 'README.rst')
 
 setup(name='cwl-upgrader',
-      version='0.2',
+      version='0.2.1',
       description='Common Workflow Language standalone document upgrader',
       long_description=open(README).read(),
       author='Common Workflow Language contributors',
