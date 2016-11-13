@@ -20,7 +20,7 @@ setup(name='cwl-upgrader',
       license='Apache 2.0',
       packages=["cwlupgrader"],
       install_requires=[
-          'ruamel.yaml==0.12.15',
+          'ruamel.yaml==0.12.16',
           'typing'
         ],
       entry_points={
