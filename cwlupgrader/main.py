@@ -55,9 +55,14 @@ def _draft3_to_v1_0(document):
         document["doc"] = document["description"]
         del document["description"]
 
-    for key, value in document.items():
-        if isinstance(value, MutableMapping):
-            document[key] = _draft3_to_v1_0(value)
+    if isinstance(document, MutableMapping):
+        for key, value in document.items():
+            if isinstance(value, MutableMapping):
+                document[key] = _draft3_to_v1_0(value)
+            elif isinstance(value, list):
+                for index, entry in enumerate(value):
+                    if isinstance(entry, MutableMapping):
+                        value[index] = _draft3_to_v1_0(entry)
 
     return document
 

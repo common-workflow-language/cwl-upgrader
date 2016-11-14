@@ -10,7 +10,7 @@ SETUP_DIR = os.path.dirname(__file__)
 README = os.path.join(SETUP_DIR, 'README.rst')
 
 setup(name='cwl-upgrader',
-      version='0.2.1',
+      version='0.2.2',
       description='Common Workflow Language standalone document upgrader',
       long_description=open(README).read(),
       author='Common Workflow Language contributors',
@@ -21,13 +21,12 @@ setup(name='cwl-upgrader',
       packages=["cwlupgrader"],
       install_requires=[
           'ruamel.yaml == 0.12.4',
-          'typing'
-        ],
+          'typing' ],
       entry_points={
           'console_scripts': [ "cwl-upgrader = cwlupgrader.main:main" ]
       },
-      classifier=[
-          'Development Status :: 2 - Pre-Alpha',
+      classifiers=[
+          'Development Status :: 4 - Beta',
           'Environment :: Console',
           'Intended Audience :: Developers',
           'Intended Audience :: Healthcare Industry',
@@ -41,7 +40,6 @@ setup(name='cwl-upgrader',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
           'Topic :: Scientific/Engineering',
-          'Topic :: Scientific/Engineering :: Bio-Informatics'
-          ],
+          'Topic :: Scientific/Engineering :: Bio-Informatics' ],
       zip_safe=True,
 )
