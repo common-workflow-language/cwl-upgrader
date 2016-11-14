@@ -26,7 +26,7 @@ MODULE=cwl-upgrader
 # `SHELL=bash` Will break Titus's laptop, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard ${MODULE}/**.py tests/*.py) setup.py
-DEVPKGS=pep8 diff_cover autopep8 pylint coverage pep257
+DEVPKGS=pep8 diff_cover autopep8 pylint coverage pep257 flake8
 MYPYPATH=typeshed/2or3
 MYPYFLAGS=--disallow-untyped-calls --disallow-untyped-defs \
 	  --warn-incomplete-stub --warn-redundant-casts
@@ -45,7 +45,7 @@ install-dep: install-dependencies
 
 install-dependencies:
 	pip install --upgrade $(DEVPKGS)
-	pip install -r requirements.txt
+	#pip install -r requirements.txt
 
 ## install     : install the ${MODULE} module and schema-salad-tool
 install: FORCE

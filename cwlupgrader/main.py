@@ -11,7 +11,11 @@ def main():  # type: () -> int
     for path in sys.argv[1:]:
         with open(path) as entry:
             document = ruamel.yaml.round_trip_load(entry)
-            draft3_to_v1_0(document)
+            if ('cwlVersion' in document
+                    and document['cwlVersion'] == 'cwl:draft-3'):
+                    draft3_to_v1_0(document)
+            else:
+                print("Skipping non draft-3 CWL document", file=sys.stderr)
             print(ruamel.yaml.round_trip_dump(document))
     return 0
 
@@ -45,7 +49,7 @@ def _draft3_to_v1_0(document):
         for i, sf in enumerate(document["secondaryFiles"]):
             if "$(" in sf or "${" in sf:
                 document["secondaryFiles"][i] = sf.replace(
-		    '"path"', '"location"').replace(".path", ".location")
+                    '"path"', '"location"').replace(".path", ".location")
 
     if "description" in document:
         document["doc"] = document["description"]
@@ -92,4 +96,3 @@ def shortenType(typeObj):
 
 if __name__ == "__main__":
     sys.exit(main())
-
