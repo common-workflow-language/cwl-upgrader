@@ -27,12 +27,20 @@ def _draft3_to_v1_0(document):
     # type: (MutableMapping[str, Any]) -> MutableMapping[str, Any]
     if "class" in document:
         if document["class"] == "Workflow":
+            inputOutputClean(document)
             for out in document["outputs"]:
-                out["outputSource"] = out["source"]
-                del out["source"]
+                out["outputSource"] = out.pop("source").lstrip('#')
+            for step in document["steps"]:
+                step["out"] = step.pop("outputs")
+                for inp in step["inputs"]:
+                    inp["id"] = inp["id"][len(step["id"])+1:]  # remove step id prefix
+                    inp["source"] = inp["source"].lstrip('#')
+                step["in"] = step.pop("inputs")
+                if "scatter" in step:
+                    step["scatter"] = step["scatter"][  # remove step prefix
+                        len(step["id"])*2+3:]
         elif document["class"] == "File":
-            document["location"] = document["path"]
-            del document["path"]
+            document["location"] = document.pop("path")
         elif document["class"] == "CreateFileRequirement":
             document["class"] = "InitialWorkDirRequirement"
             document["listing"] = []
@@ -43,7 +51,7 @@ def _draft3_to_v1_0(document):
                 })
             del document["fileDef"]
         elif document["class"] == "CommandLineTool":
-            setupCLTMappings(document)
+            inputOutputClean(document)
 
     if "secondaryFiles" in document:
         for i, sf in enumerate(document["secondaryFiles"]):
@@ -66,18 +74,12 @@ def _draft3_to_v1_0(document):
 
     return document
 
-def setupCLTMappings(document):  # type: (MutableMapping[str, Any]) -> None
+def inputOutputClean(document):  # type: (MutableMapping[str, Any]) -> None
     for paramType in ['inputs', 'outputs']:
-        params = {}
         for param in document[paramType]:
-            paramID = param['id'].lstrip('#')
-            param['type'] = shortenType(param['type'])
-            if len(param) == 2 and 'type' in param:
-                params[paramID] = param['type']
-            else:
-                del param['id']
-                params[paramID] = param
-        document[paramType] = params
+            param['id'] = param['id'].lstrip('#')
+            if 'type' in param:
+                param['type'] = shortenType(param['type'])
 
 def shortenType(typeObj):
     # type: (List[Any]) -> Union[str, List[Any]]
@@ -98,6 +100,7 @@ def shortenType(typeObj):
             if isinstance(typeCopy[0], str):
                 return typeCopy[0] + '?'
     return typeObj
+
 
 if __name__ == "__main__":
     sys.exit(main())
