@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 import ruamel.yaml
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 from collections import Mapping, MutableMapping, Sequence
 import sys
 import copy
