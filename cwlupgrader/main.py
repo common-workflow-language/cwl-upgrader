@@ -30,12 +30,15 @@ def _draft3_to_v1_0(document):
         if document["class"] == "Workflow":
             inputOutputClean(document)
             for out in document["outputs"]:
-                out["outputSource"] = out.pop("source").lstrip('#')
+                out["outputSource"] = \
+                    out.pop("source").lstrip('#').replace(".", "/")
             new_steps = {}
             for step in document["steps"]:
-                new_step = {}  # type: Dict[Text, Any]
+                new_step = copy.deepcopy(step)  # type: Dict[Text, Any]
+                del new_step["id"]
                 new_step["out"] = [ outp["id"][len(step["id"])+1:] for outp in
                     step["outputs"] ]
+                del new_step["outputs"]
                 ins = {}
                 for inp in step["inputs"]:
                     ident = inp["id"][len(step["id"])+1:]  # remove step id prefix
@@ -43,6 +46,7 @@ def _draft3_to_v1_0(document):
                     del inp["id"]
                     ins[ident] = inp
                 new_step["in"] = ins
+                del new_step["inputs"]
                 if "scatter" in step:
                     new_step["scatter"] = step["scatter"][  # remove step prefix
                         len(step["id"])*2+3:]
