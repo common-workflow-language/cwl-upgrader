@@ -12,7 +12,8 @@ def main():  # type: () -> int
         with open(path) as entry:
             document = ruamel.yaml.load(entry)
             if ('cwlVersion' in document
-                    and document['cwlVersion'] == 'cwl:draft-3'):
+                    and (document['cwlVersion'] == 'cwl:draft-3'
+                    or document['cwlVersion'] == 'draft-3')):
                     draft3_to_v1_0(document)
             else:
                 print("Skipping non draft-3 CWL document", file=sys.stderr)
