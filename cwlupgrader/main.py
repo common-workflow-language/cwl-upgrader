@@ -2,7 +2,7 @@
 
 from __future__ import print_function
 import ruamel.yaml
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Text, Union
 from collections import Mapping, MutableMapping, Sequence
 import sys
 import copy
@@ -32,7 +32,7 @@ def _draft3_to_v1_0(document):
                 out["outputSource"] = out.pop("source").lstrip('#')
             new_steps = {}
             for step in document["steps"]:
-                new_step = {}
+                new_step = {}  # type: Dict[Text, Any]
                 new_step["out"] = [ outp["id"][len(step["id"])+1:] for outp in
                     step["outputs"] ]
                 ins = {}
