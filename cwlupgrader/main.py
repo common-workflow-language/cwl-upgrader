@@ -5,12 +5,17 @@ from __future__ import print_function
 from collections import Mapping, MutableMapping, Sequence
 import sys
 import copy
-from typing import Any, Dict, List, Text, Union  # pylint:disable=unused-import
+from typing import (Any, Dict, List, Optional,  # pylint:disable=unused-import
+                    Text, Union)
 import ruamel.yaml
 
-def main():  # type: () -> int
+
+def main(args=None):  # type: (Optional[List[str]]) -> int
     """Main function."""
-    for path in sys.argv[1:]:
+    if not args:
+        args = sys.argv[1:]
+    assert args is not None
+    for path in args:
         with open(path) as entry:
             document = ruamel.yaml.safe_load(entry)
             if ('cwlVersion' in document
@@ -35,6 +40,7 @@ def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> None
                     if isinstance(entry, MutableMapping):
                         value[index] = _draft3_to_v1_0(entry)
     document['cwlVersion'] = 'v1.0'
+
 
 def _draft3_to_v1_0(document):
     # type: (MutableMapping[Text, Any]) -> MutableMapping[Text, Any]
@@ -144,7 +150,7 @@ def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
         if 'null' in new_type:
             type_copy = copy.deepcopy(new_type)
             type_copy.remove('null')
-            if isinstance(type_copy[0], Text):
+            if isinstance(type_copy[0], (str, Text)):
                 return type_copy[0] + '?'
     return new_type
 
@@ -160,4 +166,4 @@ def clean_secondary_files(document):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[:1]))
