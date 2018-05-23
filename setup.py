@@ -2,15 +2,17 @@
 
 import os
 import sys
-import shutil
 
 from setuptools import setup, find_packages
 
 SETUP_DIR = os.path.dirname(__file__)
 README = os.path.join(SETUP_DIR, 'README.rst')
 
+needs_pytest = {'pytest', 'test', 'ptr'}.intersection(sys.argv)
+pytest_runner = ['pytest-runner', 'pytest-cov'] if needs_pytest else []
+
 setup(name='cwl-upgrader',
-      version='0.3.3',
+      version='0.4.0',
       description='Common Workflow Language standalone document upgrader',
       long_description=open(README).read(),
       author='Common Workflow Language contributors',
@@ -20,10 +22,10 @@ setup(name='cwl-upgrader',
       license='Apache 2.0',
       packages=["cwlupgrader"],
       install_requires=[
-          'ruamel.yaml == 0.12.4',
-          'typing' ],
+          'ruamel.yaml >= 0.14.12, < 0.15',
+          'typing'],
       entry_points={
-          'console_scripts': [ "cwl-upgrader = cwlupgrader.main:main" ]
+          'console_scripts': ["cwl-upgrader = cwlupgrader.main:main"]
       },
       classifiers=[
           'Development Status :: 4 - Beta',
@@ -40,6 +42,7 @@ setup(name='cwl-upgrader',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
           'Topic :: Scientific/Engineering',
-          'Topic :: Scientific/Engineering :: Bio-Informatics' ],
+          'Topic :: Scientific/Engineering :: Bio-Informatics'],
       zip_safe=True,
-)
+      setup_requires=[] + pytest_runner,
+      tests_require=['pytest'])
