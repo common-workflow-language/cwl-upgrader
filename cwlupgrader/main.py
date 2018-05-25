@@ -8,7 +8,7 @@ import copy
 from typing import (Any, Dict, List, Optional,  # pylint:disable=unused-import
                     Text, Union)
 import ruamel.yaml
-
+from ruamel.yaml.comments import CommentedMap  # for consistent sort order
 
 def main(args=None):  # type: (Optional[List[str]]) -> int
     """Main function."""
@@ -69,23 +69,26 @@ def _draft3_to_v1_0(document):
 
 
 def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
-    """Transform draft-3 style Workflows to idiomatic v1.0"""
+    """Transform draft-3 style Workflows to more idiomatic v1.0"""
     input_output_clean(document)
     hints_and_requirements_clean(document)
     outputs = document['outputs']
     for output_id in outputs:
         outputs[output_id]["outputSource"] = \
             outputs[output_id].pop("source").lstrip('#').replace(".", "/")
-    new_steps = {}
+    new_steps = CommentedMap()
     for step in document["steps"]:
-        new_step = copy.deepcopy(step)  # type: Dict[Text, Any]
-        del new_step["id"]
-        new_step["out"] = [outp["id"][len(step["id"])+1:] for outp in
-                           step["outputs"]]
-        del new_step["outputs"]
-        ins = {}
+        new_step = CommentedMap()
+        new_step.update(step)
+        step = new_step
+        step_id = step.pop("id")
+        step_id_len = len(step_id)+1
+        step["out"] = [outp["id"][step_id_len:] for outp in
+                       step["outputs"]]
+        del step["outputs"]
+        ins = CommentedMap()
         for inp in step["inputs"]:
-            ident = inp["id"][len(step["id"])+1:]  # remove step id prefix
+            ident = inp["id"][step_id_len:]  # remove step id prefix
             if 'source' in inp:
                 inp["source"] = inp["source"].lstrip('#').replace(".", "/")
             del inp["id"]
@@ -95,14 +98,17 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
                 ins[ident] = inp.popitem()[1]
             else:
                 ins[ident] = {}
-        new_step["in"] = ins
-        del new_step["inputs"]
+        step["in"] = ins
+        del step["inputs"]
         if "scatter" in step:
-            new_step["scatter"] = step["scatter"][  # remove step prefix
-                len(step["id"])+1:]
-        if "description" in new_step:
-            new_step["doc"] = new_step.pop("description")
-        new_steps[step["id"].lstrip('#')] = new_step
+            if len(step["scatter"]) == 1:
+                step["scatter"] = step["scatter"][step_id_len:]
+            else:
+                step["scatter"] = [source[step_id_len:] for
+                                   source in step["scatter"]]
+        if "description" in step:
+            step["doc"] = step.pop("description")
+        new_steps[step_id.lstrip('#')] = step
     document["steps"] = new_steps
 
 
@@ -111,7 +117,7 @@ def input_output_clean(document):  # type: (MutableMapping[Text, Any]) -> None
     for param_type in ['inputs', 'outputs']:
         if param_type not in document:
             break
-        new_section = {}
+        new_section = CommentedMap()
         for param in document[param_type]:
             param_id = param.pop('id').lstrip('#')
             if 'type' in param:
@@ -186,7 +192,7 @@ def sort_v1_0(document):  # type: (Dict) -> Dict
                 'hints', 'inputs', 'stdin', 'baseCommand', 'steps',
                 'expression', 'arguments', 'stderr', 'stdout', 'outputs',
                 'successCodes', 'temporaryFailCodes', 'permanentFailCodes']
-    return ruamel.yaml.comments.CommentedMap(
+    return CommentedMap(
         sorted(document.items(), key=lambda i: keyorder.index(i[0])
                if i[0] in keyorder else 100))
 
@@ -194,7 +200,7 @@ def sort_v1_0(document):  # type: (Dict) -> Dict
 def sort_enum(enum):  # type: (Mapping) -> Dict
     """Sort the enum type definitions in a more meaningful order."""
     keyorder = ['type', 'name', 'label', 'symbols', 'inputBinding']
-    return ruamel.yaml.comments.CommentedMap(
+    return CommentedMap(
         sorted(enum.items(), key=lambda i: keyorder.index(i[0])
                if i[0] in keyorder else 100))
 
@@ -203,10 +209,10 @@ def sort_input_or_output(io_def):  # type: (Dict) -> Dict
     """Sort the input definitions in a more meaningful order."""
     keyorder = ['label', 'doc', 'type', 'format', 'secondaryFiles',
                 'default', 'inputBinding', 'outputBinding', 'streamable']
-    return ruamel.yaml.comments.CommentedMap(
+    return CommentedMap(
         sorted(io_def.items(), key=lambda i: keyorder.index(i[0])
                if i[0] in keyorder else 100))
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[:1]))
+    sys.exit(main())

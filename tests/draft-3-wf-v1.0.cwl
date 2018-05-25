@@ -5,19 +5,19 @@ requirements:
 inputs:
   input_file: File?
 steps:
-  validatefiles:
-    out:
-    - report
-    run: validate.cwl
-    in:
-      type: {}
-      input_file: input_file
   md5:
+    run: md5.cwl
     out:
     - report
-    run: md5.cwl
     in:
       input_file: input_file
+  validatefiles:
+    run: validate.cwl
+    out:
+    - report
+    in:
+      input_file: input_file
+      type: {}
 outputs:
   validatefiles_report:
     type: File?
