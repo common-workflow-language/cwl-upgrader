@@ -15,47 +15,47 @@
 #
 # Contact: common-workflow-language@googlegroups.com
 
-# make pep8 to check for basic Python code compliance
+# make pycodestyle to check for basic Python code compliance
 # make autopep8 to fix most pep8 errors
 # make pylint to check Python code for enhanced compliance including naming
 #  and documentation
 # make coverage-report to check coverage of the python scripts by the tests
 
-MODULE=cwl-upgrader
+MODULE=cwlupgrader
 
-# `SHELL=bash` Will break Titus's laptop, so don't use BASH-isms like
+# `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(wildcard ${MODULE}/**.py tests/*.py) setup.py
-DEVPKGS=pep8 diff_cover autopep8 pylint coverage pep257 flake8
-MYPYPATH=typeshed/2or3
-MYPYFLAGS=--disallow-untyped-calls --disallow-untyped-defs \
-	  --warn-incomplete-stub --warn-redundant-casts
-
+PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
+DEVPKGS=pycodestyle diff_cover autopep8 pylint coverage pydocstyle flake8 pytest isort mock
+DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
+	   python-flake8 python-mock shellcheck
 VERSION=$(shell git describe --tags --dirty | sed s/v//)
 
 ## all         : default task
-all: ./setup.py develop
+all:
+	./setup.py develop
 
 ## help        : print this help message and exit
 help: Makefile
 	@sed -n 's/^##//p' $<
 
 ## install-dep : install most of the development dependencies via pip
-install-dep: install-dependencies
-
-install-dependencies:
+install-dep:
 	pip install --upgrade $(DEVPKGS)
-	#pip install -r requirements.txt
+
+## install-deb-dep: install most of the dev dependencies via apt-get
+install-deb-dep:
+	sudo apt-get install $(DEBDEVPKGS)
 
 ## install     : install the ${MODULE} module and schema-salad-tool
 install: FORCE
-	./setup.py build install
+	pip install .
 
 ## dist        : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
-	./setup.py sdist
+	./setup.py sdist bdist_wheel
 
 ## clean       : clean up all temporary / machine-generated files
 clean: FORCE
@@ -64,25 +64,32 @@ clean: FORCE
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
-## pep8        : check Python code style
-pep8: $(PYSOURCES)
-	pep8 --exclude=_version.py  --show-source --show-pep8 $^ || true
+# Linting and code style related targets
+## sorting imports using isort: https://github.com/timothycrosley/isort
+sort_imports:
+	isort ${MODULE}/*.py tests/*.py setup.py
 
-pep8_report.txt: $(PYSOURCES)
-	pep8 --exclude=_version.py $^ > $@ || true
+pep8: pycodestyle
+## pycodestyle        : check Python code style
+pycodestyle: $(PYSOURCES)
+	pycodestyle --exclude=_version.py  --show-source --show-pep8 $^ || true
 
-diff_pep8_report: pep8_report.txt
-	diff-quality --violations=pep8 pep8_report.txt
+pycodestyle_report.txt: $(PYSOURCES)
+	pycodestyle --exclude=_version.py $^ > $@ || true
 
-## pep257      : check Python code style
-pep257: $(PYSOURCES)
-	pep257 --ignore=D100,D101,D102,D103 $^ || true
+diff_pycodestyle_report: pycodestyle_report.txt
+	diff-quality --violations=pycodestyle $^
 
-pep257_report.txt: $(PYSOURCES)
-	pep257 setup.py $^ > $@ 2>&1 || true
+pep257: pydocstyle
+## pydocstyle      : check Python code style
+pydocstyle: $(PYSOURCES)
+	pydocstyle --ignore=D100,D101,D102,D103 $^ || true
 
-diff_pep257_report: pep257_report.txt
-	diff-quality --violations=pep8 pep257_report.txt
+pydocstyle_report.txt: $(PYSOURCES)
+	pydocstyle setup.py $^ > pydocstyle_report.txt 2>&1 || true
+
+diff_pydocstyle_report: pydocstyle_report.txt
+	diff-quality --violations=pycodestyle $^
 
 ## autopep8    : fix most Python code indentation and formatting
 autopep8: $(PYSOURCES)
@@ -105,8 +112,10 @@ pylint_report.txt: ${PYSOURCES}
 diff_pylint_report: pylint_report.txt
 	diff-quality --violations=pylint pylint_report.txt
 
-.coverage: $(PYSOURCES)
-	coverage run --branch --source=${MODULE} setup.py test
+.coverage: testcov
+
+coverage: .coverage
+	coverage report
 
 coverage.xml: .coverage
 	coverage xml
@@ -130,6 +139,10 @@ diff-cover.html: coverage.xml
 test: FORCE
 	python setup.py test
 
+## testcov     : run the ${MODULE} test suite and collect coverage
+testcov: $(pysources)
+	python setup.py test --addopts "--cov ${MODULE}"
+
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
 
@@ -141,18 +154,34 @@ list-author-emails:
 	@echo 'name, E-Mail Address'
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
-mypy: ${PYSOURCES}
-	MYPYPATH=${MYPYPATH} mypy ${MYPYFLAGS} cwlupgrader/
-	MYPYPATH=${MYPYPATH} mypy --py2 ${MYPYFLAGS} cwlupgrader/
 
-jenkins:
-	rm -Rf env && virtualenv env
-	. env/bin/activate ; \
-	pip install -U setuptools pip wheel ; \
-	${MAKE} install-dep coverage.html coverage.xml pep257_report.txt \
-		sloccount.sc pep8_report.txt pylint_report.txt
-	if ! test -d env3 ; then virtualenv -p python3 env3 ; fi
-	. env3/bin/activate ; \
-	pip install -U mypy-lang; ${MAKE} mypy
+mypy2: ${PYSOURCES}
+	rm -Rf typeshed/2and3/ruamel/yaml
+	ln -s $(shell python -c 'from __future__ import print_function; import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
+		typeshed/2and3/ruamel/yaml
+	MYPYPATH=$$MYPYPATH:typeshed/2.7:typeshed/2and3 mypy --py2 --disallow-untyped-calls \
+		 --warn-redundant-casts \
+		 ${MODULE}
+
+mypy3: ${PYSOURCES}
+	rm -Rf typeshed/2and3/ruamel/yaml
+	ln -s $(shell python3 -c 'from __future__ import print_function; import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
+		typeshed/2and3/ruamel/yaml
+	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
+		 --warn-redundant-casts \
+		 ${MODULE}
+
+release: FORCE
+	./release-test.sh
+	. testenv2/bin/activate && \
+		testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
+		pip install twine && \
+		twine upload testenv2/src/${MODULE}/dist/* && \
+		git tag ${VERSION} && git push --tags
 
 FORCE:
+
+# Use this to print the value of a Makefile variable
+# Example `make print-VERSION`
+# From https://www.cmcrossroads.com/article/printing-value-makefile-variable
+print-%  : ; @echo $* = $($*)

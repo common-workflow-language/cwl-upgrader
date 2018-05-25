@@ -1,77 +1,36 @@
 #!/usr/bin/env python
+"""Transforms draft-3 CWL documents into v1.0 as idiomatically as possible."""
 
 from __future__ import print_function
-import ruamel.yaml
-from typing import Any, Dict, List, Text, Union
 from collections import Mapping, MutableMapping, Sequence
 import sys
 import copy
+from typing import (Any, Dict, List, Optional,  # pylint:disable=unused-import
+                    Text, Union)
+import ruamel.yaml
 
-def main():  # type: () -> int
-    for path in sys.argv[1:]:
+
+def main(args=None):  # type: (Optional[List[str]]) -> int
+    """Main function."""
+    if not args:
+        args = sys.argv[1:]
+    assert args is not None
+    for path in args:
         with open(path) as entry:
-            document = ruamel.yaml.load(entry)
+            document = ruamel.yaml.safe_load(entry)
             if ('cwlVersion' in document
                     and (document['cwlVersion'] == 'cwl:draft-3'
-                    or document['cwlVersion'] == 'draft-3')):
-                    draft3_to_v1_0(document)
+                         or document['cwlVersion'] == 'draft-3')):
+                draft3_to_v1_0(document)
             else:
                 print("Skipping non draft-3 CWL document", file=sys.stderr)
-            print(ruamel.yaml.dump(document))
+            print(ruamel.yaml.dump(document, default_flow_style=False))
     return 0
 
-def draft3_to_v1_0(document):  # type: (Dict[str, Any]) -> None
+
+def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> None
+    """Transformation loop."""
     _draft3_to_v1_0(document)
-    document['cwlVersion'] = 'v1.0'
-
-def _draft3_to_v1_0(document):
-    # type: (MutableMapping[str, Any]) -> MutableMapping[str, Any]
-    if "class" in document:
-        if document["class"] == "Workflow":
-            inputOutputClean(document)
-            for out in document["outputs"]:
-                out["outputSource"] = out.pop("source").lstrip('#')
-            new_steps = {}
-            for step in document["steps"]:
-                new_step = {}  # type: Dict[Text, Any]
-                new_step["out"] = [ outp["id"][len(step["id"])+1:] for outp in
-                    step["outputs"] ]
-                ins = {}
-                for inp in step["inputs"]:
-                    ident = inp["id"][len(step["id"])+1:]  # remove step id prefix
-                    inp["source"] = inp["source"].lstrip('#')
-                    del inp["id"]
-                    ins[ident] = inp
-                new_step["in"] = ins
-                if "scatter" in step:
-                    new_step["scatter"] = step["scatter"][  # remove step prefix
-                        len(step["id"])*2+3:]
-                new_steps[step["id"].lstrip('#')] = new_step
-            document["steps"] = new_steps
-        elif document["class"] == "File":
-            document["location"] = document.pop("path")
-        elif document["class"] == "CreateFileRequirement":
-            document["class"] = "InitialWorkDirRequirement"
-            document["listing"] = []
-            for filedef in document["fileDef"]:
-                document["listing"].append({
-                    "entryname": filedef["filename"],
-                    "entry": filedef["fileContent"]
-                })
-            del document["fileDef"]
-        elif document["class"] == "CommandLineTool":
-            inputOutputClean(document)
-
-    if "secondaryFiles" in document:
-        for i, sf in enumerate(document["secondaryFiles"]):
-            if "$(" in sf or "${" in sf:
-                document["secondaryFiles"][i] = sf.replace(
-                    '"path"', '"location"').replace(".path", ".location")
-
-    if "description" in document:
-        document["doc"] = document["description"]
-        del document["description"]
-
     if isinstance(document, MutableMapping):
         for key, value in document.items():
             if isinstance(value, MutableMapping):
@@ -80,36 +39,131 @@ def _draft3_to_v1_0(document):
                 for index, entry in enumerate(value):
                     if isinstance(entry, MutableMapping):
                         value[index] = _draft3_to_v1_0(entry)
+    document['cwlVersion'] = 'v1.0'
+
+
+def _draft3_to_v1_0(document):
+    # type: (MutableMapping[Text, Any]) -> MutableMapping[Text, Any]
+    """Inner loop for transforming draft-3 to v1.0."""
+    if "class" in document:
+        if document["class"] == "Workflow":
+            workflow_clean(document)
+        elif document["class"] == "File":
+            document["location"] = document.pop("path")
+        elif document["class"] == "CommandLineTool":
+            input_output_clean(document)
+            hints_and_requirements_clean(document)
+    clean_secondary_files(document)
+
+    if "description" in document:
+        document["doc"] = document.pop("description")
 
     return document
 
-def inputOutputClean(document):  # type: (MutableMapping[str, Any]) -> None
-    for paramType in ['inputs', 'outputs']:
-        for param in document[paramType]:
-            param['id'] = param['id'].lstrip('#')
-            if 'type' in param:
-                param['type'] = shortenType(param['type'])
 
-def shortenType(typeObj):
-    # type: (List[Any]) -> Union[str, List[Any]]
-    if isinstance(typeObj, str) or not isinstance(typeObj, Sequence):
-        return typeObj
-    newType = []
-    for entry in typeObj:  # find arrays that we can shorten and do so
+def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
+    """Transform draft-3 style Workflows to idiomatic v1.0"""
+    input_output_clean(document)
+    hints_and_requirements_clean(document)
+    outputs = document['outputs']
+    for output_id in outputs:
+        outputs[output_id]["outputSource"] = \
+            outputs[output_id].pop("source").lstrip('#').replace(".", "/")
+    new_steps = {}
+    for step in document["steps"]:
+        new_step = copy.deepcopy(step)  # type: Dict[Text, Any]
+        del new_step["id"]
+        new_step["out"] = [outp["id"][len(step["id"])+1:] for outp in
+                           step["outputs"]]
+        del new_step["outputs"]
+        ins = {}
+        for inp in step["inputs"]:
+            ident = inp["id"][len(step["id"])+1:]  # remove step id prefix
+            if 'source' in inp:
+                inp["source"] = inp["source"].lstrip('#')
+            del inp["id"]
+            if len(inp) > 1:
+                ins[ident] = inp
+            elif len(inp) == 1:
+                ins[ident] = inp.popitem()[1]
+            else:
+                ins[ident] = {}
+        new_step["in"] = ins
+        del new_step["inputs"]
+        if "scatter" in step:
+            new_step["scatter"] = step["scatter"][  # remove step prefix
+                len(step["id"])*2+3:]
+        new_steps[step["id"].lstrip('#')] = new_step
+    document["steps"] = new_steps
+
+
+def input_output_clean(document):  # type: (MutableMapping[Text, Any]) -> None
+    """Transform draft-3 style input/output listings into idiomatic v1.0."""
+    for param_type in ['inputs', 'outputs']:
+        if param_type not in document:
+            break
+        new_section = {}
+        for param in document[param_type]:
+            param_id = param.pop('id').lstrip('#')
+            if 'type' in param:
+                param['type'] = shorten_type(param['type'])
+            if len(param) > 1:
+                new_section[param_id] = param
+            else:
+                new_section[param_id] = param.popitem()[1]
+        document[param_type] = new_section
+
+
+def hints_and_requirements_clean(document):
+    # type: (MutableMapping[Text, Any]) -> None
+    """Transform draft-3 style hints/reqs into idiomatic v1.0 hints/reqs."""
+    for section in ['hints', 'requirements']:
+        if section in document:
+            new_section = {}
+            for entry in document[section]:
+                if entry["class"] == "CreateFileRequirement":
+                    entry["class"] = "InitialWorkDirRequirement"
+                    entry["listing"] = []
+                    for filedef in entry["fileDef"]:
+                        entry["listing"].append({
+                            "entryname": filedef["filename"],
+                            "entry": filedef["fileContent"]
+                        })
+                    del entry["fileDef"]
+                new_section[entry["class"]] = entry
+                del entry["class"]
+            document[section] = new_section
+
+
+def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
+    """Transform draft-3 style type declarations into idiomatic v1.0 types."""
+    if isinstance(type_obj, Text) or not isinstance(type_obj, Sequence):
+        return type_obj
+    new_type = []
+    for entry in type_obj:  # find arrays that we can shorten and do so
         if isinstance(entry, Mapping):
             if (entry['type'] == 'array' and
-                    isinstance(entry['items'], str)):
+                    isinstance(entry['items'], Text)):
                 entry = entry['items'] + '[]'
-        newType.extend([entry])
-    typeObj = newType
-    if len(typeObj) == 2:
-        if 'null' in typeObj:
-            typeCopy = copy.deepcopy(typeObj)
-            typeCopy.remove('null')
-            if isinstance(typeCopy[0], str):
-                return typeCopy[0] + '?'
-    return typeObj
+        new_type.extend([entry])
+    if len(new_type) == 2:
+        if 'null' in new_type:
+            type_copy = copy.deepcopy(new_type)
+            type_copy.remove('null')
+            if isinstance(type_copy[0], (str, Text)):
+                return type_copy[0] + '?'
+    return new_type
+
+
+def clean_secondary_files(document):
+    # type: (MutableMapping[Text, Any]) -> None
+    """Cleanup for secondaryFiles"""
+    if "secondaryFiles" in document:
+        for i, sfile in enumerate(document["secondaryFiles"]):
+            if "$(" in sfile or "${" in sfile:
+                document["secondaryFiles"][i] = sfile.replace(
+                    '"path"', '"location"').replace(".path", ".location")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[:1]))
