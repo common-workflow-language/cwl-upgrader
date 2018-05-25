@@ -80,7 +80,7 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         for inp in step["inputs"]:
             ident = inp["id"][len(step["id"])+1:]  # remove step id prefix
             if 'source' in inp:
-                inp["source"] = inp["source"].lstrip('#')
+                inp["source"] = inp["source"].lstrip('#').replace(".", "/")
             del inp["id"]
             if len(inp) > 1:
                 ins[ident] = inp
@@ -92,7 +92,7 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         del new_step["inputs"]
         if "scatter" in step:
             new_step["scatter"] = step["scatter"][  # remove step prefix
-                len(step["id"])*2+3:]
+                len(step["id"])+1:]
         new_steps[step["id"].lstrip('#')] = new_step
     document["steps"] = new_steps
 
