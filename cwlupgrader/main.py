@@ -21,14 +21,15 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
             if ('cwlVersion' in document
                     and (document['cwlVersion'] == 'cwl:draft-3'
                          or document['cwlVersion'] == 'draft-3')):
-                draft3_to_v1_0(document)
+                document = draft3_to_v1_0(document)
             else:
                 print("Skipping non draft-3 CWL document", file=sys.stderr)
-            print(ruamel.yaml.dump(document, default_flow_style=False))
+            print(ruamel.yaml.round_trip_dump(
+                document, default_flow_style=False))
     return 0
 
 
-def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> None
+def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> Dict
     """Transformation loop."""
     _draft3_to_v1_0(document)
     if isinstance(document, MutableMapping):
@@ -40,6 +41,7 @@ def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> None
                     if isinstance(entry, MutableMapping):
                         value[index] = _draft3_to_v1_0(entry)
     document['cwlVersion'] = 'v1.0'
+    return sort_v1_0(document)
 
 
 def _draft3_to_v1_0(document):
@@ -53,6 +55,11 @@ def _draft3_to_v1_0(document):
         elif document["class"] == "CommandLineTool":
             input_output_clean(document)
             hints_and_requirements_clean(document)
+            if isinstance(document["baseCommand"], list) and \
+                    len(document["baseCommand"]) == 1:
+                document["baseCommand"] = document["baseCommand"][0]
+            if "arguments" in document and not document["arguments"]:
+                del document["arguments"]
     clean_secondary_files(document)
 
     if "description" in document:
@@ -93,6 +100,8 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         if "scatter" in step:
             new_step["scatter"] = step["scatter"][  # remove step prefix
                 len(step["id"])+1:]
+        if "description" in new_step:
+            new_step["doc"] = new_step.pop("description")
         new_steps[step["id"].lstrip('#')] = new_step
     document["steps"] = new_steps
 
@@ -107,8 +116,10 @@ def input_output_clean(document):  # type: (MutableMapping[Text, Any]) -> None
             param_id = param.pop('id').lstrip('#')
             if 'type' in param:
                 param['type'] = shorten_type(param['type'])
+            if 'description' in param:
+                param['doc'] = param.pop('description')
             if len(param) > 1:
-                new_section[param_id] = param
+                new_section[param_id] = sort_input_or_output(param)
             else:
                 new_section[param_id] = param.popitem()[1]
         document[param_type] = new_section
@@ -143,8 +154,10 @@ def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
     for entry in type_obj:  # find arrays that we can shorten and do so
         if isinstance(entry, Mapping):
             if (entry['type'] == 'array' and
-                    isinstance(entry['items'], Text)):
+                    isinstance(entry['items'], (str, Text))):
                 entry = entry['items'] + '[]'
+            elif entry['type'] == 'enum':
+                entry = sort_enum(entry)
         new_type.extend([entry])
     if len(new_type) == 2:
         if 'null' in new_type:
@@ -152,6 +165,8 @@ def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
             type_copy.remove('null')
             if isinstance(type_copy[0], (str, Text)):
                 return type_copy[0] + '?'
+    if len(new_type) == 1:
+        return new_type[0]
     return new_type
 
 
@@ -163,6 +178,34 @@ def clean_secondary_files(document):
             if "$(" in sfile or "${" in sfile:
                 document["secondaryFiles"][i] = sfile.replace(
                     '"path"', '"location"').replace(".path", ".location")
+
+
+def sort_v1_0(document):  # type: (Dict) -> Dict
+    """Sort the sections of the CWL document in a more meaningful order."""
+    keyorder = ['cwlVersion', 'class', 'id', 'label', 'doc', 'requirements',
+                'hints', 'inputs', 'stdin', 'baseCommand', 'steps',
+                'expression', 'arguments', 'stderr', 'stdout', 'outputs',
+                'successCodes', 'temporaryFailCodes', 'permanentFailCodes']
+    return ruamel.yaml.comments.CommentedMap(
+        sorted(document.items(), key=lambda i: keyorder.index(i[0])
+               if i[0] in keyorder else 100))
+
+
+def sort_enum(enum):  # type: (Mapping) -> Dict
+    """Sort the enum type definitions in a more meaningful order."""
+    keyorder = ['type', 'name', 'label', 'symbols', 'inputBinding']
+    return ruamel.yaml.comments.CommentedMap(
+        sorted(enum.items(), key=lambda i: keyorder.index(i[0])
+               if i[0] in keyorder else 100))
+
+
+def sort_input_or_output(io_def):  # type: (Dict) -> Dict
+    """Sort the input definitions in a more meaningful order."""
+    keyorder = ['label', 'doc', 'type', 'format', 'secondaryFiles',
+                'default', 'inputBinding', 'outputBinding', 'streamable']
+    return ruamel.yaml.comments.CommentedMap(
+        sorted(io_def.items(), key=lambda i: keyorder.index(i[0])
+               if i[0] in keyorder else 100))
 
 
 if __name__ == "__main__":
