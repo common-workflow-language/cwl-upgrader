@@ -1,5 +1,4 @@
 import filecmp
-import os
 from cwlupgrader.main import main
 from .util import get_data
 
@@ -11,6 +10,6 @@ def test_draft3_workflow(tmpdir, capsys):
         outfile.write(capsys.readouterr().out)
         outfile.flush()
         outfile.close()
-    result = filecmp.cmp('tests/draft-3-wf-v1.0.cwl', str(test_path),
+    result = filecmp.cmp(get_data('tests/draft-3-wf-v1.0.cwl'), str(test_path),
                          shallow=False)
     assert result

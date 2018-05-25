@@ -1,28 +1,28 @@
-class: Workflow
 cwlVersion: v1.0
-inputs:
-  input_file: File?
-outputs:
-  md5_report:
-    outputSource: md5/report
-    type: File?
-  validatefiles_report:
-    outputSource: validatefiles/report
-    type: File?
+class: Workflow
 requirements:
   InlineJavascriptRequirement: {}
+inputs:
+  input_file: File?
 steps:
   md5:
-    in:
-      input_file: input_file
+    run: md5.cwl
     out:
     - report
-    run: md5.cwl
+    in:
+      input_file: input_file
   validatefiles:
+    run: validate.cwl
+    out:
+    - report
     in:
       input_file: input_file
       type: {}
-    out:
-    - report
-    run: validate.cwl
+outputs:
+  validatefiles_report:
+    type: File?
+    outputSource: validatefiles/report
+  md5_report:
+    type: File?
+    outputSource: md5/report
 
