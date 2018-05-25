@@ -101,11 +101,13 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         step["in"] = ins
         del step["inputs"]
         if "scatter" in step:
-            if len(step["scatter"]) == 1:
+            if isinstance(step["scatter"], (str, Text)) == 1:
                 step["scatter"] = step["scatter"][step_id_len:]
-            else:
+            elif isinstance(step["scatter"], list) and len(step["scatter"]) > 1:
                 step["scatter"] = [source[step_id_len:] for
                                    source in step["scatter"]]
+            else:
+                step["scatter"] = step["scatter"][0][step_id_len:]
         if "description" in step:
             step["doc"] = step.pop("description")
         new_steps[step_id.lstrip('#')] = step
@@ -154,7 +156,7 @@ def hints_and_requirements_clean(document):
 
 def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
     """Transform draft-3 style type declarations into idiomatic v1.0 types."""
-    if isinstance(type_obj, Text) or not isinstance(type_obj, Sequence):
+    if isinstance(type_obj, (str, Text)) or not isinstance(type_obj, Sequence):
         return type_obj
     new_type = []
     for entry in type_obj:  # find arrays that we can shorten and do so
