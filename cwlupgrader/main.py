@@ -83,31 +83,49 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         step = new_step
         step_id = step.pop("id")
         step_id_len = len(step_id)+1
-        step["out"] = [outp["id"][step_id_len:] for outp in
-                       step["outputs"]]
+        step["out"] = []
+        for outp in step["outputs"]:
+            clean_outp_id = outp["id"]
+            if clean_outp_id.startswith(step_id):
+                clean_outp_id = clean_outp_id[step_id_len:]
+            step["out"].append(clean_outp_id)
         del step["outputs"]
         ins = CommentedMap()
         for inp in step["inputs"]:
-            ident = inp["id"][step_id_len:]  # remove step id prefix
+            ident = inp["id"]
+            if ident.startswith(step_id):
+                ident = ident[step_id_len:]
             if 'source' in inp:
                 inp["source"] = inp["source"].lstrip('#').replace(".", "/")
             del inp["id"]
             if len(inp) > 1:
                 ins[ident] = inp
             elif len(inp) == 1:
-                ins[ident] = inp.popitem()[1]
+                if "source" in inp:
+                    ins[ident] = inp.popitem()[1]
+                else:
+                    ins[ident] = inp
             else:
                 ins[ident] = {}
         step["in"] = ins
         del step["inputs"]
         if "scatter" in step:
             if isinstance(step["scatter"], (str, Text)) == 1:
-                step["scatter"] = step["scatter"][step_id_len:]
+                source = step["scatter"]
+                if source.startswith(step_id):
+                    source = source[step_id_len:]
+                step["scatter"] = source
             elif isinstance(step["scatter"], list) and len(step["scatter"]) > 1:
-                step["scatter"] = [source[step_id_len:] for
-                                   source in step["scatter"]]
+                step["scatter"] = []
+                for source in step["scatter"]:
+                    if source.startswith(step_id):
+                        source = source[step_id_len:]
+                    step["scatter"].append(source)
             else:
-                step["scatter"] = step["scatter"][0][step_id_len:]
+                source = step["scatter"][0]
+                if source.startswith(step_id):
+                    source = source[step_id_len:]
+                step["scatter"] = source
         if "description" in step:
             step["doc"] = step.pop("description")
         new_steps[step_id.lstrip('#')] = step
