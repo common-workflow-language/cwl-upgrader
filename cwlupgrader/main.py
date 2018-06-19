@@ -95,7 +95,10 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
             if len(inp) > 1:
                 ins[ident] = inp
             elif len(inp) == 1:
-                ins[ident] = inp.popitem()[1]
+                if "source" in inp:
+                    ins[ident] = inp.popitem()[1]
+                else:
+                    ins[ident] = inp
             else:
                 ins[ident] = {}
         step["in"] = ins
