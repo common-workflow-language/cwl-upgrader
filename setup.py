@@ -12,7 +12,7 @@ NEEDS_PYTEST = {'pytest', 'test', 'ptr'}.intersection(sys.argv)
 PYTEST_RUNNER = ['pytest-runner', 'pytest-cov'] if NEEDS_PYTEST else []
 
 setup(name='cwl-upgrader',
-      version='0.4.0',
+      version='0.4.1',
       description='Common Workflow Language standalone document upgrader',
       long_description=open(README).read(),
       author='Common Workflow Language contributors',
