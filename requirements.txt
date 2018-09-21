@@ -1,2 +1,2 @@
-ruamel.yaml==0.15.69
+ruamel.yaml==0.15.70
 typing
