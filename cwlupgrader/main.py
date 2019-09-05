@@ -117,17 +117,19 @@ def _v1_0_to_v1_1(document):
             move_up_loadcontents(document)
             network_access = has_hint_or_req(document, "NetworkAccess")
             listing = has_hint_or_req(document, "LoadListingRequirement")
-            if 'hints' in document:
-                if isinstance(document['hints'], MutableSequence):
-                    if not network_access:
-                        document['hints'].append({"class": "NetworkAcess", "networkAccess": True})
-                    if not listing:
-                        document['hints'].append({"class": "LoadListingRequirement", "loadListing": "deep_listing"})
-                elif isinstance(document['hints'], MutableMapping):
-                    if not network_access:
-                        document['hints']["NetworkAcess"] = {"networkAccess": True}
-                    if not listing:
-                        document['hints']["LoadListingRequirement"] = {"loadListing": "deep_listing"}
+            hints = document.get('hints', {})
+            if isinstance(hints, MutableSequence):
+                if not network_access:
+                    hints.append({"class": "NetworkAcess", "networkAccess": True})
+                if not listing:
+                    hints.append({"class": "LoadListingRequirement", "loadListing": "deep_listing"})
+            elif isinstance(hints, MutableMapping):
+                if not network_access:
+                    hints["NetworkAcess"] = {"networkAccess": True}
+                if not listing:
+                    hints["LoadListingRequirement"] = {"loadListing": "deep_listing"}
+            if 'hints' not in document:
+                document['hints'] = hints
         elif document['class'] == 'ExpressionTool':
             move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
