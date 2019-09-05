@@ -109,15 +109,27 @@ def _v1_0_to_v1_1(document):
             if isinstance(steps, MutableSequence):
                 for entry in steps:
                     upgrade_v1_0_hints_and_reqs(entry)
+                    if 'run' in entry and isinstance(entry['run'], MutableMapping):
+                        process = entry['run']
+                        _v1_0_to_v1_1(process)
+                        if 'cwlVersion' in process:
+                            del process['cwlVersion']
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
-                    upgrade_v1_0_hints_and_reqs(steps[step_name])
+                    entry = steps[step_name]
+                    upgrade_v1_0_hints_and_reqs(entry)
+                    if 'run' in entry and isinstance(entry['run'], MutableMapping):
+                        process = entry['run']
+                        _v1_0_to_v1_1(process)
+                        if 'cwlVersion' in process:
+                            del process['cwlVersion']
         elif document['class'] == 'CommandLineTool':
             upgrade_v1_0_hints_and_reqs(document)
             move_up_loadcontents(document)
             network_access = has_hint_or_req(document, "NetworkAccess")
             listing = has_hint_or_req(document, "LoadListingRequirement")
             hints = document.get('hints', {})
+            # TODO: add comments to explain the extra hints
             if isinstance(hints, MutableSequence):
                 if not network_access:
                     hints.append({"class": "NetworkAcess", "networkAccess": True})
