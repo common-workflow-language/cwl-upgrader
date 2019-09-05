@@ -2,7 +2,7 @@
 """Transforms draft-3 CWL documents into v1.0 as idiomatically as possible."""
 
 from __future__ import print_function
-from collections import Mapping, MutableMapping, Sequence
+from collections import Mapping, MutableMapping, MutableSequence, Sequence
 import sys
 import copy
 from typing import (Any, Dict, List, Optional,  # pylint:disable=unused-import
@@ -18,15 +18,32 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
     for path in args:
         with open(path) as entry:
             document = ruamel.yaml.safe_load(entry)
-            if ('cwlVersion' in document
-                    and (document['cwlVersion'] == 'cwl:draft-3'
-                         or document['cwlVersion'] == 'draft-3')):
-                document = draft3_to_v1_0(document)
+            if 'cwlVersion' in document:
+                if (document['cwlVersion'] == 'cwl:draft-3'
+                         or document['cwlVersion'] == 'draft-3'):
+                    document = draft3_to_v1_0(document)
+                elif document['cwlVersion'] == 'v1.0':
+                    document = v1_0_to_v1_1(document)
             else:
                 print("Skipping non draft-3 CWL document", file=sys.stderr)
             print(ruamel.yaml.round_trip_dump(
                 document, default_flow_style=False))
     return 0
+
+def v1_0_to_v1_1(document):  # type: (Dict[Text, Any]) -> Dict
+    """CWL v1.0.x to v1.1 transformation loop."""
+    # TODO: handle $import, see imported-hint.cwl schemadef-tool.cwl schemadef-wf.cwl
+    _v1_0_to_v1_1(document)
+    if isinstance(document, MutableMapping):
+        for key, value in document.items():
+            if isinstance(value, MutableMapping):
+                document[key] = _v1_0_to_v1_1(value)
+            elif isinstance(value, list):
+                for index, entry in enumerate(value):
+                    if isinstance(entry, MutableMapping):
+                        value[index] = _v1_0_to_v1_1(entry)
+    document['cwlVersion'] = 'v1.1'
+    return sort_v1_0(document)
 
 
 def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> Dict
@@ -67,6 +84,102 @@ def _draft3_to_v1_0(document):
 
     return document
 
+WORKFLOW_INPUT_INPUTBINDING = \
+    "{}[cwl-upgrader_v1_0_to_v1_1] Original input had the follow (unused) inputBinding element: {}"
+
+V1_0_TO_V1_1_REWRITE = {
+        "http://commonwl.org/cwltool#WorkReuse": "WorkReuse",
+        "http://arvados.org/cwl#ReuseRequirement": "WorkReuse",
+        "http://commonwl.org/cwltool#TimeLimit": "ToolTimeLimit",
+        "http://commonwl.org/cwltool#NetworkAccess": "NetworkAccess",
+        "http://commonwl.org/cwltool#InplaceUpdateRequirement": "InplaceUpdateRequirement",
+        "http://commonwl.org/cwltool#LoadListingRequirement": "LoadListingRequirement"
+    }
+
+
+def _v1_0_to_v1_1(document):
+    # type: (MutableMapping[Text, Any]) -> MutableMapping[Text, Any]
+    """Inner loop for transforming draft-3 to v1.0."""
+    if "class" in document:
+        if document['class'] == 'Workflow':
+            upgrade_v1_0_hints_and_reqs(document)
+            cleanup_v1_0_input_bindings(document)
+            steps = document['steps']
+            if isinstance(steps, MutableSequence):
+                for entry in steps:
+                    upgrade_v1_0_hints_and_reqs(entry)
+            elif isinstance(steps, MutableMapping):
+                for step_name in steps:
+                    upgrade_v1_0_hints_and_reqs(steps[step_name])
+        elif document['class'] == 'CommandLineTool':
+            upgrade_v1_0_hints_and_reqs(document)
+            network_access = has_hint_or_req(document, "NetworkAccess")
+            listing = has_hint_or_req(document, "LoadListingRequirement")
+            if 'hints' in document:
+                if isinstance(document['hints'], MutableSequence):
+                    if not network_access:
+                        document['hints'].append({"class": "NetworkAcess", "networkAccess": True})
+                    if not listing:
+                        document['hints'].append({"class": "LoadListingRequirement", "loadListing": "deep_listing"})
+                elif isinstance(document['hints'], MutableMapping):
+                    if not network_access:
+                        document['hints']["NetworkAcess"] = {"networkAccess": True}
+                    if not listing:
+                        document['hints']["LoadListingRequirement"] = {"loadListing": "deep_listing"}
+        elif document['class'] == 'ExpressionTool':
+            cleanup_v1_0_input_bindings(document)
+    return document
+
+
+def cleanup_v1_0_input_bindings(document):
+    """In v1.1 only loadContents is allow in inputs for a Workflow or ExpressionTool."""
+    def cleanup(inp):
+        """Serialize non loadContents fields and add that to the doc."""
+        if 'inputBinding' in inp:
+            bindings = inp["inputBinding"]
+            for field in list(bindings.keys()):
+                if field != "loadContents":
+                    prefix = '' if 'doc' not in inp else '{}\n'.format(inp['doc'])
+                    inp['doc'] = WORKFLOW_INPUT_INPUTBINDING.format(prefix, field)
+                    del bindings[field]
+            if not bindings:
+                del inp['inputBinding']
+    inputs = document['inputs']
+    if isinstance(inputs, MutableSequence):
+        for entry in inputs:
+            cleanup(entry)
+    elif isinstance(inputs, MutableMapping):
+        for input_name in inputs:
+            cleanup(inputs[input_name])
+
+
+def upgrade_v1_0_hints_and_reqs(document):
+    for extra in ("requirements", "hints"):
+        if extra in document:
+            if isinstance(document[extra], MutableMapping):
+                for req_name in document[extra]:
+                    if req_name in V1_0_TO_V1_1_REWRITE:
+                        extra[V1_0_TO_V1_1_REWRITE[req_name]] = extra.pop(req_name)
+            elif isinstance(document[extra], MutableSequence):
+                for entry in document[extra]:
+                    if entry['class'] in V1_0_TO_V1_1_REWRITE:
+                        entry['class'] = V1_0_TO_V1_1_REWRITE[entry['id']]
+            else:
+                raise Exception("{} section must be either a list of dictionaries or a dictionary of dictionaries!: {}").format(extra, document[extra])
+
+def has_hint_or_req(document, name):
+    """Detects an existing named hint or requirement."""
+    for extra in ("requirements", "hints"):
+       if extra in document:
+           if isinstance(document[extra], MutableMapping):
+               if name in document[extra]:
+                   return True
+           elif isinstance(document[extra], MutableSequence):
+               for entry in document[extra]:
+                   if entry['class'] == name:
+                       return True
+    return False
+   
 
 def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
     """Transform draft-3 style Workflows to more idiomatic v1.0"""
