@@ -16,7 +16,6 @@
 # Contact: common-workflow-language@googlegroups.com
 
 # make pycodestyle to check for basic Python code compliance
-# make autopep8 to fix most pep8 errors
 # make pylint to check Python code for enhanced compliance including naming
 #  and documentation
 # make coverage-report to check coverage of the python scripts by the tests
@@ -26,8 +25,9 @@ MODULE=cwlupgrader
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
-DEVPKGS=pycodestyle diff_cover autopep8 pylint coverage pydocstyle flake8 pytest isort mock
-DEBDEVPKGS=pep8 python-autopep8 pylint python-coverage pydocstyle sloccount \
+DEVPKGS=pycodestyle diff_cover black pylint coverage pydocstyle \
+	flake8-bugbear pytest isort mock flake8
+DEBDEVPKGS=pylint python-coverage pydocstyle sloccount \
 	   python-flake8 python-mock shellcheck
 VERSION=$(shell git describe --tags --dirty | sed s/v//)
 
@@ -47,7 +47,7 @@ install-dep:
 install-deb-dep:
 	sudo apt-get install $(DEBDEVPKGS)
 
-## install     : install the ${MODULE} module and schema-salad-tool
+## install     : install the ${MODULE} module and scripts
 install: FORCE
 	pip install .
 
@@ -69,7 +69,6 @@ clean: FORCE
 sort_imports:
 	isort ${MODULE}/*.py tests/*.py setup.py
 
-pep8: pycodestyle
 ## pycodestyle        : check Python code style
 pycodestyle: $(PYSOURCES)
 	pycodestyle --exclude=_version.py  --show-source --show-pep8 $^ || true
@@ -91,14 +90,9 @@ pydocstyle_report.txt: $(PYSOURCES)
 diff_pydocstyle_report: pydocstyle_report.txt
 	diff-quality --violations=pycodestyle $^
 
-## autopep8    : fix most Python code indentation and formatting
-autopep8: $(PYSOURCES)
-	autopep8 --recursive --in-place --ignore E309 $^
-
-# A command to automatically run astyle and autopep8 on appropriate files
-## format      : check/fix all code indentation and formatting (runs autopep8)
-format: autopep8
-	# Do nothing
+## format      : check/fix all code indentation and formatting (runs black)
+format:
+	black --target-version py27 setup.py cwlupgrader
 
 ## pylint      : run static code analysis on Python code
 pylint: $(PYSOURCES)
