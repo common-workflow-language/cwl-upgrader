@@ -26,8 +26,8 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
                     document = v1_0_to_v1_1(document)
             else:
                 print("Skipping non draft-3 CWL document", file=sys.stderr)
-            print(ruamel.yaml.round_trip_dump(
-                document, default_flow_style=False))
+            ruamel.yaml.scalarstring.walk_tree(document)
+            print(ruamel.yaml.round_trip_dump(document, default_flow_style=False))
     return 0
 
 def v1_0_to_v1_1(document):  # type: (Dict[Text, Any]) -> Dict
@@ -132,7 +132,12 @@ def _v1_0_to_v1_1(document):
 
 
 def cleanup_v1_0_input_bindings(document):
-    """In v1.1 only loadContents is allow in inputs for a Workflow or ExpressionTool."""
+    """
+    In v1.1 Workflow or ExpressionTool level inputBindings are no more.
+
+    'loadContents' is promoted up a level, the rest make no sense in v1.0, but document their contents anyways
+    
+    """
     def cleanup(inp):
         """Serialize non loadContents fields and add that to the doc."""
         if 'inputBinding' in inp:
@@ -142,6 +147,8 @@ def cleanup_v1_0_input_bindings(document):
                     prefix = '' if 'doc' not in inp else '{}\n'.format(inp['doc'])
                     inp['doc'] = WORKFLOW_INPUT_INPUTBINDING.format(prefix, field)
                     del bindings[field]
+                else:
+                    inp[field] = bindings.pop(field)
             if not bindings:
                 del inp['inputBinding']
     inputs = document['inputs']
