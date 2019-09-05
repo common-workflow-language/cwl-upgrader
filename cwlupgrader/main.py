@@ -103,6 +103,7 @@ def _v1_0_to_v1_1(document):
     if "class" in document:
         if document['class'] == 'Workflow':
             upgrade_v1_0_hints_and_reqs(document)
+            move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
             steps = document['steps']
             if isinstance(steps, MutableSequence):
@@ -113,6 +114,7 @@ def _v1_0_to_v1_1(document):
                     upgrade_v1_0_hints_and_reqs(steps[step_name])
         elif document['class'] == 'CommandLineTool':
             upgrade_v1_0_hints_and_reqs(document)
+            move_up_loadcontents(document)
             network_access = has_hint_or_req(document, "NetworkAccess")
             listing = has_hint_or_req(document, "LoadListingRequirement")
             if 'hints' in document:
@@ -127,17 +129,13 @@ def _v1_0_to_v1_1(document):
                     if not listing:
                         document['hints']["LoadListingRequirement"] = {"loadListing": "deep_listing"}
         elif document['class'] == 'ExpressionTool':
+            move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
     return document
 
 
 def cleanup_v1_0_input_bindings(document):
-    """
-    In v1.1 Workflow or ExpressionTool level inputBindings are no more.
-
-    'loadContents' is promoted up a level, the rest make no sense in v1.0, but document their contents anyways
-    
-    """
+    """In v1.1 Workflow or ExpressionTool level inputBindings are deprecated."""
     def cleanup(inp):
         """Serialize non loadContents fields and add that to the doc."""
         if 'inputBinding' in inp:
@@ -147,10 +145,26 @@ def cleanup_v1_0_input_bindings(document):
                     prefix = '' if 'doc' not in inp else '{}\n'.format(inp['doc'])
                     inp['doc'] = WORKFLOW_INPUT_INPUTBINDING.format(prefix, field)
                     del bindings[field]
-                else:
-                    inp[field] = bindings.pop(field)
             if not bindings:
                 del inp['inputBinding']
+    inputs = document['inputs']
+    if isinstance(inputs, MutableSequence):
+        for entry in inputs:
+            cleanup(entry)
+    elif isinstance(inputs, MutableMapping):
+        for input_name in inputs:
+            cleanup(inputs[input_name])
+
+def move_up_loadcontents(document):
+    """'loadContents' is promoted up a level in CWL v1.1."""
+
+    def cleanup(inp):
+        """Move loadContents to the preferred location"""
+        if 'inputBinding' in inp:
+            bindings = inp["inputBinding"]
+            for field in list(bindings.keys()):
+                if field == "loadContents":
+                    inp[field] = bindings.pop(field)
     inputs = document['inputs']
     if isinstance(inputs, MutableSequence):
         for entry in inputs:
