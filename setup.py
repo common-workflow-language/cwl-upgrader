@@ -24,7 +24,7 @@ setup(
     packages=["cwlupgrader", "cwlupgrader.tests"],
     include_package_data=True,
     package_dir={"cwlupgrader.tests": "tests"},
-    package_data={'cwlupgrader.tests': [ '*.cwl']},
+    package_data={"cwlupgrader.tests": ["*.cwl"]},
     install_requires=["setuptools", "ruamel.yaml >= 0.14.12, <= 0.15.97", "typing"],
     entry_points={"console_scripts": ["cwl-upgrader = cwlupgrader.main:main"]},
     classifiers=[
