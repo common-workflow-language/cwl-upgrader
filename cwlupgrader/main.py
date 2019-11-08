@@ -38,7 +38,7 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
                 elif document["cwlVersion"] == "v1.0":
                     document = v1_0_to_v1_1(document)
             ruamel.yaml.scalarstring.walk_tree(document)
-            print (ruamel.yaml.round_trip_dump(document, default_flow_style=False))
+            print(ruamel.yaml.round_trip_dump(document, default_flow_style=False))
     return 0
 
 
