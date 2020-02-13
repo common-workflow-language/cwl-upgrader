@@ -1,5 +1,7 @@
 import filecmp
+
 from cwlupgrader.main import main
+
 from .util import get_data
 
 

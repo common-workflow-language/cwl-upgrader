@@ -1,22 +1,11 @@
 #!/usr/bin/env python
 """Transforms draft-3 CWL documents into v1.0 as idiomatically as possible."""
 
-from __future__ import print_function
-
-try:
-    from collections.abs import Mapping, MutableMapping, MutableSequence, Sequence
-except ImportError:
-    from collections import Mapping, MutableMapping, MutableSequence, Sequence
-import sys
 import copy
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,  # pylint:disable=unused-import
-    Text,
-    Union,
-)
+import sys
+from collections import MutableMapping, MutableSequence, Sequence
+from typing import Any, Dict, List, Optional, Union
+
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
 
@@ -28,7 +17,7 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
     assert args is not None
     for path in args:
         with open(path) as entry:
-            document = ruamel.yaml.safe_load(entry)
+            document = ruamel.yaml.main.safe_load(entry)
             if "cwlVersion" in document:
                 if (
                     document["cwlVersion"] == "cwl:draft-3"
@@ -38,43 +27,42 @@ def main(args=None):  # type: (Optional[List[str]]) -> int
                 elif document["cwlVersion"] == "v1.0":
                     document = v1_0_to_v1_1(document)
             ruamel.yaml.scalarstring.walk_tree(document)
-            print(ruamel.yaml.round_trip_dump(document, default_flow_style=False))
+            print(ruamel.yaml.main.round_trip_dump(document, default_flow_style=False))
     return 0
 
 
-def v1_0_to_v1_1(document):  # type: (Dict[Text, Any]) -> Dict
+def v1_0_to_v1_1(document):  # type: (Dict[str, Any]) -> Dict[str, Any]
     """CWL v1.0.x to v1.1 transformation loop."""
     # TODO: handle $import, see imported-hint.cwl schemadef-tool.cwl schemadef-wf.cwl
     _v1_0_to_v1_1(document)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
-            if isinstance(value, MutableMapping):
+            if isinstance(value, Dict):
                 document[key] = _v1_0_to_v1_1(value)
             elif isinstance(value, list):
                 for index, entry in enumerate(value):
-                    if isinstance(entry, MutableMapping):
+                    if isinstance(entry, Dict):
                         value[index] = _v1_0_to_v1_1(entry)
     document["cwlVersion"] = "v1.1"
     return sort_v1_0(document)
 
 
-def draft3_to_v1_0(document):  # type: (Dict[Text, Any]) -> Dict
+def draft3_to_v1_0(document):  # type: (Dict[str, Any]) -> Dict[str, Any]
     """Transformation loop."""
     _draft3_to_v1_0(document)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
-            if isinstance(value, MutableMapping):
+            if isinstance(value, Dict):
                 document[key] = _draft3_to_v1_0(value)
             elif isinstance(value, list):
                 for index, entry in enumerate(value):
-                    if isinstance(entry, MutableMapping):
+                    if isinstance(entry, Dict):
                         value[index] = _draft3_to_v1_0(entry)
     document["cwlVersion"] = "v1.0"
     return sort_v1_0(document)
 
 
-def _draft3_to_v1_0(document):
-    # type: (MutableMapping[Text, Any]) -> MutableMapping[Text, Any]
+def _draft3_to_v1_0(document: Dict[str, Any]) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -114,8 +102,7 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document):
-    # type: (MutableMapping[Text, Any]) -> MutableMapping[Text, Any]
+def _v1_0_to_v1_1(document: Dict[str, Any]) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -126,7 +113,7 @@ def _v1_0_to_v1_1(document):
             if isinstance(steps, MutableSequence):
                 for entry in steps:
                     upgrade_v1_0_hints_and_reqs(entry)
-                    if "run" in entry and isinstance(entry["run"], MutableMapping):
+                    if "run" in entry and isinstance(entry["run"], Dict):
                         process = entry["run"]
                         _v1_0_to_v1_1(process)
                         if "cwlVersion" in process:
@@ -135,7 +122,7 @@ def _v1_0_to_v1_1(document):
                 for step_name in steps:
                     entry = steps[step_name]
                     upgrade_v1_0_hints_and_reqs(entry)
-                    if "run" in entry and isinstance(entry["run"], MutableMapping):
+                    if "run" in entry and isinstance(entry["run"], Dict):
                         process = entry["run"]
                         _v1_0_to_v1_1(process)
                         if "cwlVersion" in process:
@@ -170,10 +157,10 @@ def _v1_0_to_v1_1(document):
     return document
 
 
-def cleanup_v1_0_input_bindings(document):
+def cleanup_v1_0_input_bindings(document: Dict[str, Any]) -> None:
     """In v1.1 Workflow or ExpressionTool level inputBindings are deprecated."""
 
-    def cleanup(inp):
+    def cleanup(inp: Dict[str, Any]) -> None:
         """Serialize non loadContents fields and add that to the doc."""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
@@ -194,10 +181,10 @@ def cleanup_v1_0_input_bindings(document):
             cleanup(inputs[input_name])
 
 
-def move_up_loadcontents(document):
+def move_up_loadcontents(document: Dict[str, Any]) -> None:
     """'loadContents' is promoted up a level in CWL v1.1."""
 
-    def cleanup(inp):
+    def cleanup(inp: Dict[str, Any]) -> None:
         """Move loadContents to the preferred location"""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
@@ -214,13 +201,15 @@ def move_up_loadcontents(document):
             cleanup(inputs[input_name])
 
 
-def upgrade_v1_0_hints_and_reqs(document):
+def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
     for extra in ("requirements", "hints"):
         if extra in document:
             if isinstance(document[extra], MutableMapping):
                 for req_name in document[extra]:
                     if req_name in V1_0_TO_V1_1_REWRITE:
-                        extra[V1_0_TO_V1_1_REWRITE[req_name]] = extra.pop(req_name)
+                        document[extra][V1_0_TO_V1_1_REWRITE[req_name]] = document[
+                            extra
+                        ].pop(req_name)
             elif isinstance(document[extra], MutableSequence):
                 for entry in document[extra]:
                     if entry["class"] in V1_0_TO_V1_1_REWRITE:
@@ -228,11 +217,13 @@ def upgrade_v1_0_hints_and_reqs(document):
             else:
                 raise Exception(
                     "{} section must be either a list of dictionaries "
-                    "or a dictionary of dictionaries!: {}"
-                ).format(extra, document[extra])
+                    "or a dictionary of dictionaries!: {}".format(
+                        extra, document[extra]
+                    )
+                )
 
 
-def has_hint_or_req(document, name):
+def has_hint_or_req(document: Dict[str, Any], name: str) -> bool:
     """Detects an existing named hint or requirement."""
     for extra in ("requirements", "hints"):
         if extra in document:
@@ -246,7 +237,7 @@ def has_hint_or_req(document, name):
     return False
 
 
-def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
+def workflow_clean(document: Dict[str, Any]) -> None:
     """Transform draft-3 style Workflows to more idiomatic v1.0"""
     input_output_clean(document)
     hints_and_requirements_clean(document)
@@ -289,7 +280,7 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         step["in"] = ins
         del step["inputs"]
         if "scatter" in step:
-            if isinstance(step["scatter"], (str, Text)) == 1:
+            if isinstance(step["scatter"], str) == 1:
                 source = step["scatter"]
                 if source.startswith(step_id):
                     source = source[step_id_len:]
@@ -311,7 +302,7 @@ def workflow_clean(document):  # type: (MutableMapping[Text, Any]) -> None
     document["steps"] = new_steps
 
 
-def input_output_clean(document):  # type: (MutableMapping[Text, Any]) -> None
+def input_output_clean(document: Dict[str, Any]) -> None:
     """Transform draft-3 style input/output listings into idiomatic v1.0."""
     for param_type in ["inputs", "outputs"]:
         if param_type not in document:
@@ -330,8 +321,7 @@ def input_output_clean(document):  # type: (MutableMapping[Text, Any]) -> None
         document[param_type] = new_section
 
 
-def hints_and_requirements_clean(document):
-    # type: (MutableMapping[Text, Any]) -> None
+def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
     """Transform draft-3 style hints/reqs into idiomatic v1.0 hints/reqs."""
     for section in ["hints", "requirements"]:
         if section in document:
@@ -353,14 +343,14 @@ def hints_and_requirements_clean(document):
             document[section] = new_section
 
 
-def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
+def shorten_type(type_obj: List[Any]) -> Union[str, List[Any]]:
     """Transform draft-3 style type declarations into idiomatic v1.0 types."""
-    if isinstance(type_obj, (str, Text)) or not isinstance(type_obj, Sequence):
+    if isinstance(type_obj, str) or not isinstance(type_obj, Sequence):
         return type_obj
-    new_type = []
+    new_type = []  # type: List[str]
     for entry in type_obj:  # find arrays that we can shorten and do so
-        if isinstance(entry, Mapping):
-            if entry["type"] == "array" and isinstance(entry["items"], (str, Text)):
+        if isinstance(entry, Dict):
+            if entry["type"] == "array" and isinstance(entry["items"], str):
                 entry = entry["items"] + "[]"
             elif entry["type"] == "enum":
                 entry = sort_enum(entry)
@@ -369,15 +359,14 @@ def shorten_type(type_obj):  # type: (List[Any]) -> Union[Text, List[Any]]
         if "null" in new_type:
             type_copy = copy.deepcopy(new_type)
             type_copy.remove("null")
-            if isinstance(type_copy[0], (str, Text)):
+            if isinstance(type_copy[0], str):
                 return type_copy[0] + "?"
     if len(new_type) == 1:
         return new_type[0]
     return new_type
 
 
-def clean_secondary_files(document):
-    # type: (MutableMapping[Text, Any]) -> None
+def clean_secondary_files(document: Dict[str, Any]) -> None:
     """Cleanup for secondaryFiles"""
     if "secondaryFiles" in document:
         for i, sfile in enumerate(document["secondaryFiles"]):
@@ -387,7 +376,7 @@ def clean_secondary_files(document):
                 ).replace(".path", ".location")
 
 
-def sort_v1_0(document):  # type: (Dict) -> Dict
+def sort_v1_0(document: Dict[str, Any]) -> Dict[str, Any]:
     """Sort the sections of the CWL document in a more meaningful order."""
     keyorder = [
         "cwlVersion",
@@ -418,7 +407,7 @@ def sort_v1_0(document):  # type: (Dict) -> Dict
     )
 
 
-def sort_enum(enum):  # type: (Mapping) -> Dict
+def sort_enum(enum: Dict[str, Any]) -> Dict[str, Any]:
     """Sort the enum type definitions in a more meaningful order."""
     keyorder = ["type", "name", "label", "symbols", "inputBinding"]
     return CommentedMap(
@@ -429,7 +418,7 @@ def sort_enum(enum):  # type: (Mapping) -> Dict
     )
 
 
-def sort_input_or_output(io_def):  # type: (Dict) -> Dict
+def sort_input_or_output(io_def: Dict[str, Any]) -> Dict[str, Any]:
     """Sort the input definitions in a more meaningful order."""
     keyorder = [
         "label",
