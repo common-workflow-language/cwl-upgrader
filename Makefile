@@ -15,7 +15,7 @@
 #
 # Contact: common-workflow-language@googlegroups.com
 
-# make pycodestyle to check for basic Python code compliance
+# make format to fix most python formatting errors
 # make pylint to check Python code for enhanced compliance including naming
 #  and documentation
 # make coverage-report to check coverage of the python scripts by the tests
@@ -25,15 +25,16 @@ MODULE=cwlupgrader
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
-DEVPKGS=pycodestyle diff_cover black pylint coverage pydocstyle \
-	flake8-bugbear pytest isort mock flake8
-DEBDEVPKGS=pylint python-coverage pydocstyle sloccount \
-	   python-flake8 python-mock shellcheck
-VERSION=$(shell git describe --tags --dirty | sed s/v//)
+DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
+	flake8-bugbear pytest isort flake8
+DEBDEVPKGS=pylint python3-coverage sloccount \
+	   python3-flake8 shellcheck
+VERSION=1.0.$(shell date +%Y%m%d%H%M%S --utc --date=`git log --first-parent \
+	--max-count=1 --format=format:%cI`)
 
 ## all         : default task
 all:
-	./setup.py develop
+	pip install -e .
 
 ## help        : print this help message and exit
 help: Makefile
@@ -69,39 +70,29 @@ clean: FORCE
 sort_imports:
 	isort ${MODULE}/*.py tests/*.py setup.py
 
-## pycodestyle        : check Python code style
-pycodestyle: $(PYSOURCES)
-	pycodestyle --exclude=_version.py  --show-source --show-pep8 $^ || true
-
-pycodestyle_report.txt: $(PYSOURCES)
-	pycodestyle --exclude=_version.py $^ > $@ || true
-
-diff_pycodestyle_report: pycodestyle_report.txt
-	diff-quality --violations=pycodestyle $^
-
 pep257: pydocstyle
 ## pydocstyle      : check Python code style
 pydocstyle: $(PYSOURCES)
-	pydocstyle --ignore=D100,D101,D102,D103 $^ || true
+	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
 
 pydocstyle_report.txt: $(PYSOURCES)
-	pydocstyle setup.py $^ > pydocstyle_report.txt 2>&1 || true
+	pydocstyle setup.py $^ > $@ 2>&1 || true
 
 diff_pydocstyle_report: pydocstyle_report.txt
-	diff-quality --violations=pycodestyle $^
+	diff-quality --violations=pycodestyle --fail-under=100 $^
 
 ## format      : check/fix all code indentation and formatting (runs black)
 format:
-	black --target-version py27 setup.py cwlupgrader
+	black setup.py cwlupgrader
 
 ## pylint      : run static code analysis on Python code
 pylint: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
-                $^ || true
+                $^ -j0|| true
 
 pylint_report.txt: ${PYSOURCES}
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
-		$^ > $@ || true
+		$^ -j0> $@ || true
 
 diff_pylint_report: pylint_report.txt
 	diff-quality --violations=pylint pylint_report.txt
@@ -148,19 +139,14 @@ list-author-emails:
 	@echo 'name, E-Mail Address'
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
-
-mypy2: ${PYSOURCES}
-	rm -Rf typeshed/2and3/ruamel/yaml
-	ln -s $(shell python -c 'from __future__ import print_function; import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-		typeshed/2and3/ruamel/yaml
-	MYPYPATH=$$MYPYPATH:typeshed/2.7:typeshed/2and3 mypy --py2 --disallow-untyped-calls \
-		 --warn-redundant-casts \
-		 ${MODULE}
-
-mypy3: ${PYSOURCES}
-	rm -Rf typeshed/2and3/ruamel/yaml
-	ln -s $(shell python3 -c 'from __future__ import print_function; import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-		typeshed/2and3/ruamel/yaml
+mypy3: mypy
+mypy: ${PYSOURCES}
+	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
+	then \
+		rm -Rf typeshed/2and3/ruamel/yaml ; \
+		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
+			typeshed/2and3/ruamel/ ; \
+	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
 		 --warn-redundant-casts \
 		 ${MODULE}

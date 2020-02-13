@@ -1,8 +1,10 @@
-from __future__ import absolute_import
 import os
 
-from pkg_resources import (Requirement, ResolutionError,  # type: ignore
-                           resource_filename)
+from pkg_resources import (  # type: ignore
+    Requirement,
+    ResolutionError,
+    resource_filename,
+)
 
 
 def get_data(filename):
