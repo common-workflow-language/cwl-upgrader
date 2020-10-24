@@ -3,66 +3,151 @@
 
 import copy
 import sys
-from collections import MutableMapping, MutableSequence, Sequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from typing import Any, Dict, List, Optional, Union
-
+from pathlib import Path
+from schema_salad.sourceline import SourceLine, add_lc_filename
+from io import StringIO
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
+import argparse
+from typing import Set, Callable
+
+import logging
+
+_logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
+defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
+_logger.addHandler(defaultStreamHandler)
+_logger.setLevel(logging.INFO)
 
 
-def main(args=None):  # type: (Optional[List[str]]) -> int
-    """Main function."""
+def parse_args(args: List[str]) -> argparse.Namespace:
+    """Argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Tool to upgrade CWL documents from one version to another. "
+        "Supports 'draft-3' to 'v1.0' or 'v1.1' and 'v1.0' to 'v1.1'."
+    )
+    parser.add_argument(
+        "--v1-only", help="Don't upgrade past cwlVersion: v1.0", action="store_true"
+    )
+    parser.add_argument("dir", help="Directory in which to save converted files")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="One or more CWL documents.",
+    )
+    return parser.parse_args(args)
+
+
+def main(args: Optional[List[str]] = None) -> int:
     if not args:
         args = sys.argv[1:]
-    assert args is not None
-    for path in args:
-        with open(path) as entry:
-            document = ruamel.yaml.main.safe_load(entry)
-            if "cwlVersion" in document:
-                if (
-                    document["cwlVersion"] == "cwl:draft-3"
-                    or document["cwlVersion"] == "draft-3"
-                ):
-                    document = draft3_to_v1_0(document)
-                elif document["cwlVersion"] == "v1.0":
-                    document = v1_0_to_v1_1(document)
-            ruamel.yaml.scalarstring.walk_tree(document)
-            print(ruamel.yaml.main.round_trip_dump(document, default_flow_style=False))
+    return run(parse_args(args))
+
+
+def run(args: argparse.Namespace) -> int:
+    """Main function."""
+    imports: Set[str] = set()
+    for path in args.inputs:
+        _logger.info("Processing %s", path)
+        document = load_cwl_document(path)
+        if "cwlVersion" in document:
+            if (
+                document["cwlVersion"] == "cwl:draft-3"
+                or document["cwlVersion"] == "draft-3"
+            ):
+                main_updater = draft3_to_v1_0
+                inner_updater = _draft3_to_v1_0
+            elif document["cwlVersion"] == "v1.0":
+                if args.v1_only:
+                    _logger.info("Skipping v1.0 document as requested: %s.", path)
+                    continue
+                main_updater = v1_0_to_v1_1
+                inner_updater = _v1_0_to_v1_1
+            process_imports(document, imports, inner_updater, args.dir)
+            document = main_updater(document, args.dir)
+            write_cwl_document(document, Path(path).name, args.dir)
+        else:
+            _logger.warn("No cwlVersion found in %s, skipping it.", path)
     return 0
 
 
-def v1_0_to_v1_1(document):  # type: (Dict[str, Any]) -> Dict[str, Any]
-    """CWL v1.0.x to v1.1 transformation loop."""
-    # TODO: handle $import, see imported-hint.cwl schemadef-tool.cwl schemadef-wf.cwl
-    _v1_0_to_v1_1(document)
+def load_cwl_document(path: str) -> Any:
+    yaml = ruamel.yaml.YAML(typ="rt")
+    yaml.allow_duplicate_keys = True
+    yaml.preserve_quote = True
+    with open(path, "r") as entry:
+        document = yaml.load(entry)
+        add_lc_filename(document, entry.name)
+    return document
+
+
+def write_cwl_document(document: Any, name: str, dirname: str) -> None:
+    ruamel.yaml.scalarstring.walk_tree(document)
+    with open(Path(dirname) / name, "w") as handle:
+        ruamel.yaml.main.round_trip_dump(
+            document, default_flow_style=False, stream=handle
+        )
+
+
+def process_imports(
+    document: Any, imports: Set[str], updater: Callable[[Any, str], Any], outdir: str
+) -> None:
     if isinstance(document, MutableMapping):
         for key, value in document.items():
-            if isinstance(value, Dict):
-                document[key] = _v1_0_to_v1_1(value)
-            elif isinstance(value, list):
-                for index, entry in enumerate(value):
-                    if isinstance(entry, Dict):
-                        value[index] = _v1_0_to_v1_1(entry)
+            if key == "$import":
+                if value not in imports:
+                    write_cwl_document(
+                        updater(
+                            load_cwl_document(
+                                Path(document.lc.filename).parent / value
+                            ),
+                            outdir,
+                        ),
+                        Path(value).name,
+                        outdir,
+                    )
+                    imports.add(value)
+            else:
+                process_imports(value, imports, updater, outdir)
+    elif isinstance(document, MutableSequence):
+        for entry in document:
+            process_imports(entry, imports, updater, outdir)
+
+
+def v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
+    """CWL v1.0.x to v1.1 transformation loop."""
+    _v1_0_to_v1_1(document, outdir)
+    if isinstance(document, MutableMapping):
+        for key, value in document.items():
+            with SourceLine(document, key, Exception):
+                if isinstance(value, Dict):
+                    document[key] = _v1_0_to_v1_1(value, outdir)
+                elif isinstance(value, list):
+                    for index, entry in enumerate(value):
+                        if isinstance(entry, Dict):
+                            value[index] = _v1_0_to_v1_1(entry, outdir)
     document["cwlVersion"] = "v1.1"
     return sort_v1_0(document)
 
 
-def draft3_to_v1_0(document):  # type: (Dict[str, Any]) -> Dict[str, Any]
+def draft3_to_v1_0(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
     """Transformation loop."""
-    _draft3_to_v1_0(document)
+    _draft3_to_v1_0(document, outdir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
-            if isinstance(value, Dict):
-                document[key] = _draft3_to_v1_0(value)
-            elif isinstance(value, list):
-                for index, entry in enumerate(value):
-                    if isinstance(entry, Dict):
-                        value[index] = _draft3_to_v1_0(entry)
+            with SourceLine(document, key, Exception):
+                if isinstance(value, Dict):
+                    document[key] = _draft3_to_v1_0(value, outdir)
+                elif isinstance(value, list):
+                    for index, entry in enumerate(value):
+                        if isinstance(entry, Dict):
+                            value[index] = _draft3_to_v1_0(entry, outdir)
     document["cwlVersion"] = "v1.0"
     return sort_v1_0(document)
 
 
-def _draft3_to_v1_0(document: Dict[str, Any]) -> Dict[str, Any]:
+def _draft3_to_v1_0(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -102,7 +187,7 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document: Dict[str, Any]) -> Dict[str, Any]:
+def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -111,22 +196,34 @@ def _v1_0_to_v1_1(document: Dict[str, Any]) -> Dict[str, Any]:
             cleanup_v1_0_input_bindings(document)
             steps = document["steps"]
             if isinstance(steps, MutableSequence):
-                for entry in steps:
-                    upgrade_v1_0_hints_and_reqs(entry)
-                    if "run" in entry and isinstance(entry["run"], Dict):
-                        process = entry["run"]
-                        _v1_0_to_v1_1(process)
-                        if "cwlVersion" in process:
-                            del process["cwlVersion"]
+                for index, entry in enumerate(steps):
+                    with SourceLine(steps, index, Exception):
+                        upgrade_v1_0_hints_and_reqs(entry)
+                        if "run" in entry and isinstance(entry["run"], Dict):
+                            process = entry["run"]
+                            _v1_0_to_v1_1(process)
+                            if "cwlVersion" in process:
+                                del process["cwlVersion"]
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
-                    entry = steps[step_name]
-                    upgrade_v1_0_hints_and_reqs(entry)
-                    if "run" in entry and isinstance(entry["run"], Dict):
-                        process = entry["run"]
-                        _v1_0_to_v1_1(process)
-                        if "cwlVersion" in process:
-                            del process["cwlVersion"]
+                    with SourceLine(steps, step_name, Exception):
+                        entry = steps[step_name]
+                        upgrade_v1_0_hints_and_reqs(entry)
+                        if "run" in entry:
+                            if isinstance(entry["run"], Dict):
+                                process = entry["run"]
+                                _v1_0_to_v1_1(process)
+                                if "cwlVersion" in process:
+                                    del process["cwlVersion"]
+                            elif isinstance(entry["run"], str):
+                                path = Path(document.lc.filename).parent / entry["run"]
+                                process = v1_0__to_v1_1(load_cwl_document(path))
+                                write_cwl_document(process, path.name, outdir)
+                            else:
+                                raise Exception(
+                                    "'run' entry was neither a CWL Process nor a path to one: %s.",
+                                    entry["run"],
+                                )
         elif document["class"] == "CommandLineTool":
             upgrade_v1_0_hints_and_reqs(document)
             move_up_loadcontents(document)
@@ -204,36 +301,45 @@ def move_up_loadcontents(document: Dict[str, Any]) -> None:
 def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
     for extra in ("requirements", "hints"):
         if extra in document:
-            if isinstance(document[extra], MutableMapping):
-                for req_name in document[extra]:
-                    if req_name in V1_0_TO_V1_1_REWRITE:
-                        document[extra][V1_0_TO_V1_1_REWRITE[req_name]] = document[
-                            extra
-                        ].pop(req_name)
-            elif isinstance(document[extra], MutableSequence):
-                for entry in document[extra]:
-                    if entry["class"] in V1_0_TO_V1_1_REWRITE:
-                        entry["class"] = V1_0_TO_V1_1_REWRITE[entry["id"]]
-            else:
-                raise Exception(
-                    "{} section must be either a list of dictionaries "
-                    "or a dictionary of dictionaries!: {}".format(
-                        extra, document[extra]
+            with SourceLine(document, extra, Exception):
+                if isinstance(document[extra], MutableMapping):
+                    for req_name in document[extra]:
+                        with SourceLine(document[extra], req_name, Exception):
+                            if req_name in V1_0_TO_V1_1_REWRITE:
+                                document[extra][
+                                    V1_0_TO_V1_1_REWRITE[req_name]
+                                ] = document[extra].pop(req_name)
+                elif isinstance(document[extra], MutableSequence):
+                    for index, entry in enumerate(document[extra]):
+                        with SourceLine(document[extra], index, Exception):
+                            if (
+                                isinstance(entry, MutableMapping)
+                                and "class" in entry
+                                and entry["class"] in V1_0_TO_V1_1_REWRITE
+                            ):
+                                entry["class"] = V1_0_TO_V1_1_REWRITE[entry["id"]]
+                else:
+                    raise Exception(
+                        "{} section must be either a list of dictionaries "
+                        "or a dictionary of dictionaries!: {}".format(
+                            extra, document[extra]
+                        )
                     )
-                )
 
 
 def has_hint_or_req(document: Dict[str, Any], name: str) -> bool:
     """Detects an existing named hint or requirement."""
     for extra in ("requirements", "hints"):
         if extra in document:
-            if isinstance(document[extra], MutableMapping):
-                if name in document[extra]:
-                    return True
-            elif isinstance(document[extra], MutableSequence):
-                for entry in document[extra]:
-                    if entry["class"] == name:
+            with SourceLine(document, extra, Exception):
+                if isinstance(document[extra], MutableMapping):
+                    if name in document[extra]:
                         return True
+                elif isinstance(document[extra], MutableSequence):
+                    for index, entry in enumerate(document[extra]):
+                        with SourceLine(document[extra], index, Exception):
+                            if "class" == entry and entry["class"] == name:
+                                return True
     return False
 
 
@@ -326,21 +432,31 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
     for section in ["hints", "requirements"]:
         if section in document:
             new_section = {}
-            for entry in document[section]:
-                if entry["class"] == "CreateFileRequirement":
-                    entry["class"] = "InitialWorkDirRequirement"
-                    entry["listing"] = []
-                    for filedef in entry["fileDef"]:
-                        entry["listing"].append(
-                            {
-                                "entryname": filedef["filename"],
-                                "entry": filedef["fileContent"],
-                            }
-                        )
-                    del entry["fileDef"]
-                new_section[entry["class"]] = entry
-                del entry["class"]
-            document[section] = new_section
+            meta = False
+            for index, entry in enumerate(document[section]):
+                with SourceLine(document[section], index, Exception):
+                    if isinstance(entry, MutableMapping):
+                        if (
+                            "class" in entry
+                            and entry["class"] == "CreateFileRequirement"
+                        ):
+                            entry["class"] = "InitialWorkDirRequirement"
+                            entry["listing"] = []
+                            for filedef in entry["fileDef"]:
+                                entry["listing"].append(
+                                    {
+                                        "entryname": filedef["filename"],
+                                        "entry": filedef["fileContent"],
+                                    }
+                                )
+                            del entry["fileDef"]
+                        elif "$import" in entry or "$include" in entry:
+                            meta = True
+                    if not meta:
+                        new_section[entry["class"]] = entry
+                        del entry["class"]
+            if not meta:
+                document[section] = new_section
 
 
 def shorten_type(type_obj: List[Any]) -> Union[str, List[Any]]:

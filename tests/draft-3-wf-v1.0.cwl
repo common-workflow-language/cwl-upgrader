@@ -25,4 +25,3 @@ outputs:
   md5_report:
     type: File?
     outputSource: md5/report
-
