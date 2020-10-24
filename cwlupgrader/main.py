@@ -85,6 +85,8 @@ def load_cwl_document(path: str) -> Any:
 def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     ruamel.yaml.scalarstring.walk_tree(document)
     with open(Path(dirname) / name, "w") as handle:
+        if 'cwlVersion' in document:
+            handle.write('#!/usr/bin/env cwl-runner\n')
         ruamel.yaml.main.round_trip_dump(
             document, default_flow_style=False, stream=handle
         )
