@@ -20,7 +20,8 @@
 #  and documentation
 # make coverage-report to check coverage of the python scripts by the tests
 
-MODULE=cwlupgrader
+MODULE=cwl-upgrader
+PACKAGE=cwlupgrader
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
@@ -68,7 +69,7 @@ clean: FORCE
 # Linting and code style related targets
 ## sorting imports using isort: https://github.com/timothycrosley/isort
 sort_imports:
-	isort ${MODULE}/*.py tests/*.py setup.py
+	isort ${PACKAGE}/*.py tests/*.py setup.py
 
 pep257: pydocstyle
 ## pydocstyle      : check Python code style
@@ -126,7 +127,7 @@ test: FORCE
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE}"
+	python setup.py test --addopts "--cov ${PACKAGE}"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
@@ -149,7 +150,7 @@ mypy: ${PYSOURCES}
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
 		 --warn-redundant-casts \
-		 ${MODULE}
+		 ${PACKAGE}
 
 release: FORCE
 	./release-test.sh
