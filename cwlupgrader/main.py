@@ -418,6 +418,7 @@ def input_output_clean(document: Dict[str, Any]) -> None:
             param_id = param.pop("id").lstrip("#")
             if "type" in param:
                 param["type"] = shorten_type(param["type"])
+                array_type_raise_sf(param)
             if "description" in param:
                 param["doc"] = param.pop("description")
             if len(param) > 1:
@@ -425,6 +426,26 @@ def input_output_clean(document: Dict[str, Any]) -> None:
             else:
                 new_section[param_id] = param.popitem()[1]
         document[param_type] = new_section
+
+
+def array_type_raise_sf(param: Dict[str, Any]) -> None:
+    """Move up draft-3 secondaryFile specs on File members in Arrays."""
+    typ = param["type"]
+    if isinstance(typ, MutableSequence):
+        for index, param2 in enumerate(typ):
+            with SourceLine(typ, index, Exception):
+                if isinstance(param2, MutableMapping) and "type" in param2:
+                    array_type_raise_sf(param2)
+    elif (
+        isinstance(typ, MutableMapping)
+        and "type" in typ
+        and typ["type"] == "array"
+        and "items" in typ
+        and "File" in typ["items"]
+        and "secondaryFiles" in typ
+    ):
+        param["secondaryFiles"] = typ["secondaryFiles"]
+        del typ["secondaryFiles"]
 
 
 def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
