@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Transforms draft-3 CWL documents into v1.0 as idiomatically as possible."""
 
+import stat
 import copy
 import sys
 from collections.abc import MutableMapping, MutableSequence, Sequence
@@ -84,12 +85,15 @@ def load_cwl_document(path: str) -> Any:
 
 def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     ruamel.yaml.scalarstring.walk_tree(document)
-    with open(Path(dirname) / name, "w") as handle:
+    path = Path(dirname) / name
+    with open(path, "w") as handle:
         if 'cwlVersion' in document:
             handle.write('#!/usr/bin/env cwl-runner\n')
         ruamel.yaml.main.round_trip_dump(
             document, default_flow_style=False, stream=handle
         )
+    if 'cwlVersion' in document:
+        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def process_imports(
