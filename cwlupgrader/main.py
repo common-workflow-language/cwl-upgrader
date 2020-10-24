@@ -457,6 +457,11 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
             for index, entry in enumerate(document[section]):
                 with SourceLine(document[section], index, Exception):
                     if isinstance(entry, MutableMapping):
+                        if "$import" in entry or "$include" in entry:
+                            meta = True
+            for index, entry in enumerate(document[section]):
+                with SourceLine(document[section], index, Exception):
+                    if isinstance(entry, MutableMapping):
                         if (
                             "class" in entry
                             and entry["class"] == "CreateFileRequirement"
@@ -471,8 +476,6 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
                                     }
                                 )
                             del entry["fileDef"]
-                        elif "$import" in entry or "$include" in entry:
-                            meta = True
                     if not meta:
                         new_section[entry["class"]] = entry
                         del entry["class"]
