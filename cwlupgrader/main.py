@@ -42,6 +42,7 @@ def parse_args(args: List[str]) -> argparse.Namespace:
 
 
 def main(args: Optional[List[str]] = None) -> int:
+    """Hook to set the args."""
     if not args:
         args = sys.argv[1:]
     return run(parse_args(args))
@@ -75,6 +76,12 @@ def run(args: argparse.Namespace) -> int:
 
 
 def load_cwl_document(path: str) -> Any:
+    """
+    Load the given path using the Ruamel YAML round-trip loader.
+
+    Also ensures that the filename is recorded so that SourceLine can produce
+    informative error messages.
+    """
     yaml = ruamel.yaml.main.YAML(typ="rt")
     yaml.allow_duplicate_keys = True
     yaml.preserve_quotes = True  # type: ignore
@@ -85,6 +92,12 @@ def load_cwl_document(path: str) -> Any:
 
 
 def write_cwl_document(document: Any, name: str, dirname: str) -> None:
+    """
+    Serialize the document using the Ruamel YAML round trip dumper.
+
+    Will also prepend "#!/usr/bin/env cwl-runner\n" and
+    set the executable bit if it is a CWL document.
+    """
     ruamel.yaml.scalarstring.walk_tree(document)
     path = Path(dirname) / name
     with open(path, "w") as handle:
@@ -100,6 +113,7 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
 def process_imports(
     document: Any, imports: Set[str], updater: Callable[[Any, str], Any], outdir: str
 ) -> None:
+    """Find any '$import's and process them."""
     if isinstance(document, CommentedMap):
         for key, value in document.items():
             if key == "$import":
@@ -309,6 +323,7 @@ def move_up_loadcontents(document: Dict[str, Any]) -> None:
 
 
 def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
+    """Rename some pre-v1.1 extensions to their official CWL v1.1 names."""
     for extra in ("requirements", "hints"):
         if extra in document:
             with SourceLine(document, extra, Exception):
@@ -392,9 +407,9 @@ def workflow_clean(document: Dict[str, Any]) -> None:
                                     inp["source"].lstrip("#").replace(".", "/")
                                 )
                             else:
-                                for index, inp_source in enumerate(inp["source"]):
-                                    with SourceLine(inp["source"], index, Exception):
-                                        inp["source"][index] = inp_source.lstrip(
+                                for index4, inp_source in enumerate(inp["source"]):
+                                    with SourceLine(inp["source"], index4, Exception):
+                                        inp["source"][index4] = inp_source.lstrip(
                                             "#"
                                         ).replace(".", "/")
                     del inp["id"]
