@@ -1,20 +1,19 @@
 #!/usr/bin/env python
 """Transforms draft-3 CWL documents into v1.0 as idiomatically as possible."""
 
-import stat
+import argparse
 import copy
+import logging
+import stat
 import sys
 from collections.abc import MutableMapping, MutableSequence, Sequence
-from typing import Any, Dict, List, Optional, Union
-from pathlib import Path
-from schema_salad.sourceline import SourceLine, add_lc_filename
 from io import StringIO
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set, Union
+
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
-import argparse
-from typing import Set, Callable
-
-import logging
+from schema_salad.sourceline import SourceLine, add_lc_filename
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -87,12 +86,12 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     ruamel.yaml.scalarstring.walk_tree(document)
     path = Path(dirname) / name
     with open(path, "w") as handle:
-        if 'cwlVersion' in document:
-            handle.write('#!/usr/bin/env cwl-runner\n')
+        if "cwlVersion" in document:
+            handle.write("#!/usr/bin/env cwl-runner\n")
         ruamel.yaml.main.round_trip_dump(
             document, default_flow_style=False, stream=handle
         )
-    if 'cwlVersion' in document:
+    if "cwlVersion" in document:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
@@ -207,7 +206,7 @@ def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
                         upgrade_v1_0_hints_and_reqs(entry)
                         if "run" in entry and isinstance(entry["run"], Dict):
                             process = entry["run"]
-                            _v1_0_to_v1_1(process)
+                            _v1_0_to_v1_1(process, outdir)
                             if "cwlVersion" in process:
                                 del process["cwlVersion"]
             elif isinstance(steps, MutableMapping):
@@ -218,7 +217,7 @@ def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
                         if "run" in entry:
                             if isinstance(entry["run"], Dict):
                                 process = entry["run"]
-                                _v1_0_to_v1_1(process)
+                                _v1_0_to_v1_1(process, outdir)
                                 if "cwlVersion" in process:
                                     del process["cwlVersion"]
                             elif isinstance(entry["run"], str):
@@ -354,63 +353,79 @@ def workflow_clean(document: Dict[str, Any]) -> None:
     input_output_clean(document)
     hints_and_requirements_clean(document)
     outputs = document["outputs"]
-    for output_id in outputs:
-        outputs[output_id]["outputSource"] = (
-            outputs[output_id].pop("source").lstrip("#").replace(".", "/")
-        )
+    for index, output_id in enumerate(outputs):
+        with SourceLine(outputs, index, Exception):
+            outputs[output_id]["outputSource"] = (
+                outputs[output_id].pop("source").lstrip("#").replace(".", "/")
+            )
     new_steps = CommentedMap()
-    for step in document["steps"]:
-        new_step = CommentedMap()
-        new_step.update(step)
-        step = new_step
-        step_id = step.pop("id")
-        step_id_len = len(step_id) + 1
-        step["out"] = []
-        for outp in step["outputs"]:
-            clean_outp_id = outp["id"]
-            if clean_outp_id.startswith(step_id):
-                clean_outp_id = clean_outp_id[step_id_len:]
-            step["out"].append(clean_outp_id)
-        del step["outputs"]
-        ins = CommentedMap()
-        for inp in step["inputs"]:
-            ident = inp["id"]
-            if ident.startswith(step_id):
-                ident = ident[step_id_len:]
-            if "source" in inp:
-                inp["source"] = inp["source"].lstrip("#").replace(".", "/")
-            del inp["id"]
-            if len(inp) > 1:
-                ins[ident] = inp
-            elif len(inp) == 1:
-                if "source" in inp:
-                    ins[ident] = inp.popitem()[1]
-                else:
-                    ins[ident] = inp
-            else:
-                ins[ident] = {}
-        step["in"] = ins
-        del step["inputs"]
-        if "scatter" in step:
-            if isinstance(step["scatter"], str) == 1:
-                source = step["scatter"]
-                if source.startswith(step_id):
-                    source = source[step_id_len:]
-                step["scatter"] = source
-            elif isinstance(step["scatter"], list) and len(step["scatter"]) > 1:
-                step["scatter"] = []
-                for source in step["scatter"]:
-                    if source.startswith(step_id):
-                        source = source[step_id_len:]
-                    step["scatter"].append(source)
-            else:
-                source = step["scatter"][0]
-                if source.startswith(step_id):
-                    source = source[step_id_len:]
-                step["scatter"] = source
-        if "description" in step:
-            step["doc"] = step.pop("description")
-        new_steps[step_id.lstrip("#")] = step
+    for index, step in enumerate(document["steps"]):
+        with SourceLine(document["steps"], index, Exception):
+            new_step = CommentedMap()
+            new_step.update(step)
+            step = new_step
+            step_id = step.pop("id")
+            step_id_len = len(step_id) + 1
+            step["out"] = []
+            for index, outp in enumerate(step["outputs"]):
+                with SourceLine(step["outputs"], index, Exception):
+                    clean_outp_id = outp["id"]
+                    if clean_outp_id.startswith(step_id):
+                        clean_outp_id = clean_outp_id[step_id_len:]
+                    step["out"].append(clean_outp_id)
+            del step["outputs"]
+            ins = CommentedMap()
+            for index, inp in enumerate(step["inputs"]):
+                with SourceLine(step["inputs"], index, Exception):
+                    ident = inp["id"]
+                    if ident.startswith(step_id):
+                        ident = ident[step_id_len:]
+                    if "source" in inp:
+                        with SourceLine(inp, "source", Exception):
+                            if isinstance(inp["source"], str):
+                                inp["source"] = (
+                                    inp["source"].lstrip("#").replace(".", "/")
+                                )
+                            else:
+                                for index, inp_source in enumerate(inp["source"]):
+                                    with SourceLine(inp["source"], index, Exception):
+                                        inp["source"][index] = inp_source.lstrip(
+                                            "#"
+                                        ).replace(".", "/")
+                    del inp["id"]
+                    if len(inp) > 1:
+                        ins[ident] = inp
+                    elif len(inp) == 1:
+                        if "source" in inp:
+                            ins[ident] = inp.popitem()[1]
+                        else:
+                            ins[ident] = inp
+                    else:
+                        ins[ident] = {}
+            step["in"] = ins
+            del step["inputs"]
+            if "scatter" in step:
+                with SourceLine(step, "scatter", Exception):
+                    if isinstance(step["scatter"], str) == 1:
+                        source = step["scatter"]
+                        if source.startswith(step_id):
+                            source = source[step_id_len:]
+                        step["scatter"] = source
+                    elif isinstance(step["scatter"], list) and len(step["scatter"]) > 1:
+                        step["scatter"] = []
+                        for index, source in enumerate(step["scatter"]):
+                            with SourceLine(step["scatter"], index, Exception):
+                                if source.startswith(step_id):
+                                    source = source[step_id_len:]
+                                step["scatter"].append(source)
+                    else:
+                        source = step["scatter"][0]
+                        if source.startswith(step_id):
+                            source = source[step_id_len:]
+                        step["scatter"] = source
+            if "description" in step:
+                step["doc"] = step.pop("description")
+            new_steps[step_id.lstrip("#")] = step
     document["steps"] = new_steps
 
 
@@ -420,18 +435,25 @@ def input_output_clean(document: Dict[str, Any]) -> None:
         if param_type not in document:
             break
         new_section = CommentedMap()
-        for param in document[param_type]:
-            param_id = param.pop("id").lstrip("#")
-            if "type" in param:
-                param["type"] = shorten_type(param["type"])
-                array_type_raise_sf(param)
-            if "description" in param:
-                param["doc"] = param.pop("description")
-            if len(param) > 1:
-                new_section[param_id] = sort_input_or_output(param)
-            else:
-                new_section[param_id] = param.popitem()[1]
-        document[param_type] = new_section
+        meta = False
+        for index, param in enumerate(document[param_type]):
+            with SourceLine(document[param_type], index, Exception):
+                if "$import" in param:
+                    meta = True
+        if not meta:
+            for index, param in enumerate(document[param_type]):
+                with SourceLine(document[param_type], index, Exception):
+                    param_id = param.pop("id").lstrip("#")
+                    if "type" in param:
+                        param["type"] = shorten_type(param["type"])
+                        array_type_raise_sf(param)
+                    if "description" in param:
+                        param["doc"] = param.pop("description")
+                    if len(param) > 1:
+                        new_section[param_id] = sort_input_or_output(param)
+                    else:
+                        new_section[param_id] = param.popitem()[1]
+            document[param_type] = new_section
 
 
 def array_type_raise_sf(param: Dict[str, Any]) -> None:
