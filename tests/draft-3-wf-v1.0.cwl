@@ -1,3 +1,4 @@
+#!/usr/bin/env cwl-runner
 cwlVersion: v1.0
 class: Workflow
 requirements:
@@ -10,13 +11,13 @@ steps:
     out:
     - report
     in:
-      input_file: input_file
+      input_file: 'input_file'
   validatefiles:
     run: validate.cwl
     out:
     - report
     in:
-      input_file: input_file
+      input_file: 'input_file'
       type: {}
 outputs:
   validatefiles_report:
@@ -25,4 +26,3 @@ outputs:
   md5_report:
     type: File?
     outputSource: md5/report
-

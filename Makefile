@@ -20,13 +20,14 @@
 #  and documentation
 # make coverage-report to check coverage of the python scripts by the tests
 
-MODULE=cwlupgrader
+MODULE=cwl-upgrader
+PACKAGE=cwlupgrader
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
 DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
-	flake8-bugbear pytest isort flake8
+	flake8 flake8-bugbear pyupgrade mypy
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
 VERSION=1.0.$(shell date +%Y%m%d%H%M%S --utc --date=`git log --first-parent \
@@ -68,7 +69,7 @@ clean: FORCE
 # Linting and code style related targets
 ## sorting imports using isort: https://github.com/timothycrosley/isort
 sort_imports:
-	isort ${MODULE}/*.py tests/*.py setup.py
+	isort ${PACKAGE}/*.py tests/*.py setup.py
 
 pep257: pydocstyle
 ## pydocstyle      : check Python code style
@@ -79,7 +80,7 @@ pydocstyle_report.txt: $(PYSOURCES)
 	pydocstyle setup.py $^ > $@ 2>&1 || true
 
 diff_pydocstyle_report: pydocstyle_report.txt
-	diff-quality --violations=pycodestyle --fail-under=100 $^
+	diff-quality --compare-branch=main --violations=pycodestyle --fail-under=100 $^
 
 ## format      : check/fix all code indentation and formatting (runs black)
 format:
@@ -95,7 +96,7 @@ pylint_report.txt: ${PYSOURCES}
 		$^ -j0> $@ || true
 
 diff_pylint_report: pylint_report.txt
-	diff-quality --violations=pylint pylint_report.txt
+	diff-quality --compare-branch main --violations=pylint pylint_report.txt
 
 .coverage: testcov
 
@@ -115,10 +116,10 @@ coverage-report: .coverage
 	coverage report
 
 diff-cover: coverage.xml
-	diff-cover $^
+	diff-cover --compare-branch main $^
 
 diff-cover.html: coverage.xml
-	diff-cover $^ --html-report $@
+	diff-cover --compare-branch main $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
 test: FORCE
@@ -126,7 +127,7 @@ test: FORCE
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
 testcov: $(pysources)
-	python setup.py test --addopts "--cov ${MODULE}"
+	python setup.py test --addopts "--cov ${PACKAGE}"
 
 sloccount.sc: ${PYSOURCES} Makefile
 	sloccount --duplicates --wide --details $^ > $@
@@ -149,7 +150,10 @@ mypy: ${PYSOURCES}
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
 		 --warn-redundant-casts \
-		 ${MODULE}
+		 ${PACKAGE}
+
+pyupgrade: $(filter-out schema_salad/metaschema.py,${PYSOURCES})
+	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
 release: FORCE
 	./release-test.sh
