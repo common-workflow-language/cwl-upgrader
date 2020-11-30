@@ -6,10 +6,9 @@ import copy
 import logging
 import stat
 import sys
-from collections.abc import MutableMapping, MutableSequence, Sequence
-from io import StringIO
+from collections.abc import MutableSequence, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
 
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
@@ -73,9 +72,9 @@ def run(args: argparse.Namespace) -> int:
 
 
 def load_cwl_document(path: str) -> Any:
-    yaml = ruamel.yaml.YAML(typ="rt")
+    yaml = ruamel.yaml.main.YAML(typ="rt")
     yaml.allow_duplicate_keys = True
-    yaml.preserve_quotes = True
+    yaml.preserve_quotes = True  # type: ignore
     with open(path) as entry:
         document = yaml.load(entry)
         add_lc_filename(document, entry.name)
@@ -98,7 +97,7 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
 def process_imports(
     document: Any, imports: Set[str], updater: Callable[[Any, str], Any], outdir: str
 ) -> None:
-    if isinstance(document, MutableMapping):
+    if isinstance(document, CommentedMap):
         for key, value in document.items():
             if key == "$import":
                 if value not in imports:
@@ -120,39 +119,39 @@ def process_imports(
             process_imports(entry, imports, updater, outdir)
 
 
-def v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
+def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     """CWL v1.0.x to v1.1 transformation loop."""
     _v1_0_to_v1_1(document, outdir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
             with SourceLine(document, key, Exception):
-                if isinstance(value, Dict):
+                if isinstance(value, CommentedMap):
                     document[key] = _v1_0_to_v1_1(value, outdir)
                 elif isinstance(value, list):
                     for index, entry in enumerate(value):
-                        if isinstance(entry, Dict):
+                        if isinstance(entry, CommentedMap):
                             value[index] = _v1_0_to_v1_1(entry, outdir)
     document["cwlVersion"] = "v1.1"
     return sort_v1_0(document)
 
 
-def draft3_to_v1_0(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
+def draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
     """Transformation loop."""
     _draft3_to_v1_0(document, outdir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
             with SourceLine(document, key, Exception):
-                if isinstance(value, Dict):
+                if isinstance(value, CommentedMap):
                     document[key] = _draft3_to_v1_0(value, outdir)
                 elif isinstance(value, list):
                     for index, entry in enumerate(value):
-                        if isinstance(entry, Dict):
+                        if isinstance(entry, CommentedMap):
                             value[index] = _draft3_to_v1_0(entry, outdir)
     document["cwlVersion"] = "v1.0"
     return sort_v1_0(document)
 
 
-def _draft3_to_v1_0(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
+def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -192,7 +191,7 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
+def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> Dict[str, Any]:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -204,7 +203,7 @@ def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
                 for index, entry in enumerate(steps):
                     with SourceLine(steps, index, Exception):
                         upgrade_v1_0_hints_and_reqs(entry)
-                        if "run" in entry and isinstance(entry["run"], Dict):
+                        if "run" in entry and isinstance(entry["run"], CommentedMap):
                             process = entry["run"]
                             _v1_0_to_v1_1(process, outdir)
                             if "cwlVersion" in process:
@@ -215,18 +214,21 @@ def _v1_0_to_v1_1(document: Dict[str, Any], outdir: str) -> Dict[str, Any]:
                         entry = steps[step_name]
                         upgrade_v1_0_hints_and_reqs(entry)
                         if "run" in entry:
-                            if isinstance(entry["run"], Dict):
+                            if isinstance(entry["run"], CommentedMap):
                                 process = entry["run"]
                                 _v1_0_to_v1_1(process, outdir)
                                 if "cwlVersion" in process:
                                     del process["cwlVersion"]
                             elif isinstance(entry["run"], str):
                                 path = Path(document.lc.filename).parent / entry["run"]
-                                process = v1_0__to_v1_1(load_cwl_document(path))
+                                process = v1_0_to_v1_1(
+                                    load_cwl_document(str(path)), outdir
+                                )
                                 write_cwl_document(process, path.name, outdir)
                             else:
                                 raise Exception(
-                                    "'run' entry was neither a CWL Process nor a path to one: %s.",
+                                    "'run' entry was neither a CWL Process nor "
+                                    "a path to one: %s.",
                                     entry["run"],
                                 )
         elif document["class"] == "CommandLineTool":
@@ -456,7 +458,7 @@ def input_output_clean(document: Dict[str, Any]) -> None:
             document[param_type] = new_section
 
 
-def array_type_raise_sf(param: Dict[str, Any]) -> None:
+def array_type_raise_sf(param: MutableMapping[str, Any]) -> None:
     """Move up draft-3 secondaryFile specs on File members in Arrays."""
     typ = param["type"]
     if isinstance(typ, MutableSequence):
@@ -544,7 +546,7 @@ def clean_secondary_files(document: Dict[str, Any]) -> None:
                 ).replace(".path", ".location")
 
 
-def sort_v1_0(document: Dict[str, Any]) -> Dict[str, Any]:
+def sort_v1_0(document: Dict[str, Any]) -> CommentedMap:
     """Sort the sections of the CWL document in a more meaningful order."""
     keyorder = [
         "cwlVersion",
