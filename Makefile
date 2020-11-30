@@ -27,7 +27,7 @@ PACKAGE=cwlupgrader
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
 DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
-	flake8-bugbear pytest isort flake8
+	flake8 flake8-bugbear pyupgrade mypy
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
 VERSION=1.0.$(shell date +%Y%m%d%H%M%S --utc --date=`git log --first-parent \
@@ -80,7 +80,7 @@ pydocstyle_report.txt: $(PYSOURCES)
 	pydocstyle setup.py $^ > $@ 2>&1 || true
 
 diff_pydocstyle_report: pydocstyle_report.txt
-	diff-quality --violations=pycodestyle --fail-under=100 $^
+	diff-quality --compare-branch=main --violations=pycodestyle --fail-under=100 $^
 
 ## format      : check/fix all code indentation and formatting (runs black)
 format:
@@ -151,6 +151,9 @@ mypy: ${PYSOURCES}
 	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
 		 --warn-redundant-casts \
 		 ${PACKAGE}
+
+pyupgrade: $(filter-out schema_salad/metaschema.py,${PYSOURCES})
+	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
 release: FORCE
 	./release-test.sh

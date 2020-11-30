@@ -76,7 +76,7 @@ def load_cwl_document(path: str) -> Any:
     yaml = ruamel.yaml.YAML(typ="rt")
     yaml.allow_duplicate_keys = True
     yaml.preserve_quotes = True
-    with open(path, "r") as entry:
+    with open(path) as entry:
         document = yaml.load(entry)
         add_lc_filename(document, entry.name)
     return document
