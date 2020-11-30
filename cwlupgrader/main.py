@@ -372,16 +372,16 @@ def workflow_clean(document: Dict[str, Any]) -> None:
             step_id = step.pop("id")
             step_id_len = len(step_id) + 1
             step["out"] = []
-            for index, outp in enumerate(step["outputs"]):
-                with SourceLine(step["outputs"], index, Exception):
+            for index2, outp in enumerate(step["outputs"]):
+                with SourceLine(step["outputs"], index2, Exception):
                     clean_outp_id = outp["id"]
                     if clean_outp_id.startswith(step_id):
                         clean_outp_id = clean_outp_id[step_id_len:]
                     step["out"].append(clean_outp_id)
             del step["outputs"]
             ins = CommentedMap()
-            for index, inp in enumerate(step["inputs"]):
-                with SourceLine(step["inputs"], index, Exception):
+            for index3, inp in enumerate(step["inputs"]):
+                with SourceLine(step["inputs"], index3, Exception):
                     ident = inp["id"]
                     if ident.startswith(step_id):
                         ident = ident[step_id_len:]
@@ -446,8 +446,8 @@ def input_output_clean(document: Dict[str, Any]) -> None:
                 if "$import" in param:
                     meta = True
         if not meta:
-            for index, param in enumerate(document[param_type]):
-                with SourceLine(document[param_type], index, Exception):
+            for index2, param in enumerate(document[param_type]):
+                with SourceLine(document[param_type], index2, Exception):
                     param_id = param.pop("id").lstrip("#")
                     if "type" in param:
                         param["type"] = shorten_type(param["type"])
@@ -492,26 +492,26 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
                     if isinstance(entry, MutableMapping):
                         if "$import" in entry or "$include" in entry:
                             meta = True
-            for index, entry in enumerate(document[section]):
-                with SourceLine(document[section], index, Exception):
-                    if isinstance(entry, MutableMapping):
+            for index2, entry2 in enumerate(document[section]):
+                with SourceLine(document[section], index2, Exception):
+                    if isinstance(entry2, MutableMapping):
                         if (
-                            "class" in entry
-                            and entry["class"] == "CreateFileRequirement"
+                            "class" in entry2
+                            and entry2["class"] == "CreateFileRequirement"
                         ):
-                            entry["class"] = "InitialWorkDirRequirement"
-                            entry["listing"] = []
-                            for filedef in entry["fileDef"]:
-                                entry["listing"].append(
+                            entry2["class"] = "InitialWorkDirRequirement"
+                            entry2["listing"] = []
+                            for filedef in entry2["fileDef"]:
+                                entry2["listing"].append(
                                     {
                                         "entryname": filedef["filename"],
                                         "entry": filedef["fileContent"],
                                     }
                                 )
-                            del entry["fileDef"]
+                            del entry2["fileDef"]
                     if not meta:
-                        new_section[entry["class"]] = entry
-                        del entry["class"]
+                        new_section[entry2["class"]] = entry2
+                        del entry2["class"]
             if not meta:
                 document[section] = new_section
 
