@@ -433,8 +433,8 @@ def workflow_clean(document: Dict[str, Any]) -> None:
                         step["scatter"] = source
                     elif isinstance(step["scatter"], list) and len(step["scatter"]) > 1:
                         step["scatter"] = []
-                        for index, source in enumerate(step["scatter"]):
-                            with SourceLine(step["scatter"], index, Exception):
+                        for index4, source in enumerate(step["scatter"]):
+                            with SourceLine(step["scatter"], index4, Exception):
                                 if source.startswith(step_id):
                                     source = source[step_id_len:]
                                 step["scatter"].append(source)
