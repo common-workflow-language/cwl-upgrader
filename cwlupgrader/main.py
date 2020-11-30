@@ -24,12 +24,15 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to upgrade CWL documents from one version to another. "
-        "Supports 'draft-3' to 'v1.0' or 'v1.1' and 'v1.0' to 'v1.1'."
+        "Supports 'draft-3' to 'v1.0' or 'v1.1' and 'v1.0' to 'v1.1'.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--v1-only", help="Don't upgrade past cwlVersion: v1.0", action="store_true"
     )
-    parser.add_argument("dir", help="Directory in which to save converted files")
+    parser.add_argument(
+        "--dir", help="Directory in which to save converted files", default=Path.cwd()
+    )
     parser.add_argument(
         "inputs",
         nargs="+",
