@@ -30,8 +30,7 @@ DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
 	flake8 flake8-bugbear pyupgrade mypy
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.0.$(shell date +%Y%m%d%H%M%S --utc --date=`git log --first-parent \
-	--max-count=1 --format=format:%cI`)
+VERSION=1.1  # please also update setup.py
 
 ## all         : default task
 all:
