@@ -51,6 +51,6 @@ setup(
     ],
     zip_safe=True,
     setup_requires=[] + PYTEST_RUNNER,
-    tests_require=["pytest < 6.2.0"],
+    tests_require=["pytest < 6.3.0"],
     test_suite="tests",
 )
