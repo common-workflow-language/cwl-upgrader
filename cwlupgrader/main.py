@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Uni
 
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
-from schema_salad.sourceline import SourceLine, add_lc_filename
+from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -24,11 +24,17 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to upgrade CWL documents from one version to another. "
-        "Supports 'draft-3' to 'v1.0' or 'v1.1' and 'v1.0' to 'v1.1'.",
+        "Supports upgrading 'draft-3', 'v1.0', and 'v1.1' to 'v1.2'",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--v1-only", help="Don't upgrade past cwlVersion: v1.0", action="store_true"
+    )
+    parser.add_argument(
+        "--v1.1-only",
+        dest="v1_1_only",
+        help="Don't upgrade past cwlVersion: v1.1",
+        action="store_true",
     )
     parser.add_argument(
         "--dir", help="Directory in which to save converted files", default=Path.cwd()
@@ -54,25 +60,58 @@ def run(args: argparse.Namespace) -> int:
     for path in args.inputs:
         _logger.info("Processing %s", path)
         document = load_cwl_document(path)
-        if "cwlVersion" in document:
-            if (
-                document["cwlVersion"] == "cwl:draft-3"
-                or document["cwlVersion"] == "draft-3"
-            ):
-                main_updater = draft3_to_v1_0
-                inner_updater = _draft3_to_v1_0
-            elif document["cwlVersion"] == "v1.0":
+        if "cwlVersion" not in document:
+            _logger.warn("No cwlVersion found in %s, skipping it.", path)
+        else:
+            if document["cwlVersion"] == "v1.0":
                 if args.v1_only:
                     _logger.info("Skipping v1.0 document as requested: %s.", path)
                     continue
-                main_updater = v1_0_to_v1_1
-                inner_updater = _v1_0_to_v1_1
-            process_imports(document, imports, inner_updater, args.dir)
-            document = main_updater(document, args.dir)
-            write_cwl_document(document, Path(path).name, args.dir)
-        else:
-            _logger.warn("No cwlVersion found in %s, skipping it.", path)
+            elif document["cwlVersion"] == "v1.1":
+                if args.v1_1_only:
+                    _logger.info("Skipping v1.1 document as requested: %s.", path)
+                    continue
+            upgraded_document = upgrade_document(
+                document, args.v1_only, args.v1_1_only, args.dir, imports
+            )
+            write_cwl_document(upgraded_document, Path(path).name, args.dir)
     return 0
+
+
+def upgrade_document(
+    document: Any, v1_only: bool, v1_1_only: bool, output_dir: str, imports: Set[str]
+) -> Any:
+    version = document["cwlVersion"]
+    if version == "cwl:draft-3" or version == "draft-3":
+        if v1_only:
+            main_updater = draft3_to_v1_0
+            inner_updater = _draft3_to_v1_0
+        elif v1_1_only:
+            main_updater = draft3_to_v1_1
+            inner_updater = _draft3_to_v1_1
+        else:
+            main_updater = draft3_to_v1_2
+            inner_updater = _draft3_to_v1_2
+    elif version == "v1.0":
+        if v1_only:
+            _logger.info("Skipping v1.0 document as requested.")
+            return
+        elif v1_1_only:
+            main_updater = v1_0_to_v1_1
+            inner_updater = _v1_0_to_v1_1
+        else:
+            main_updater = v1_0_to_v1_2
+            inner_updater = _v1_0_to_v1_2
+    elif version == "v1.1":
+        if v1_1_only:
+            _logger.info("Skipping v1.1 document as requested.")
+            return
+        main_updater = v1_1_to_v1_2
+        inner_updater = _v1_1_to_v1_2
+    else:
+        _logger.error(f"Unsupported cwlVersion: {version}")
+    process_imports(document, imports, inner_updater, output_dir)
+    return main_updater(document, output_dir)
 
 
 def load_cwl_document(path: str) -> Any:
@@ -152,7 +191,20 @@ def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     return sort_v1_0(document)
 
 
-def draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
+def v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    """CWL v1.0.x to v1.2 transformation."""
+    document = v1_0_to_v1_1(document, outdir)
+    document["cwlVersion"] = "v1.2"
+    return document
+
+
+def v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    """CWL v1.1 to v1.2 transformation."""
+    document["cwlVersion"] = "v1.2"
+    return document
+
+
+def draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
     """Transformation loop."""
     _draft3_to_v1_0(document, outdir)
     if isinstance(document, MutableMapping):
@@ -168,7 +220,17 @@ def draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
     return sort_v1_0(document)
 
 
-def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
+def draft3_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+    """transformation loop."""
+    return v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir)
+
+
+def draft3_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    """transformation loop."""
+    return v1_1_to_v1_2(v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir), outdir)
+
+
+def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -193,6 +255,14 @@ def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> Dict[str, Any]:
     return document
 
 
+def _draft3_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+    return v1_0_to_v1_1(_draft3_to_v1_0(document, outdir), outdir)
+
+
+def _draft3_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    return _draft3_to_v1_1(document, outdir)  # nothing needs doing for 1.2
+
+
 WORKFLOW_INPUT_INPUTBINDING = (
     "{}[cwl-upgrader_v1_0_to_v1_1] Original input had the following "
     "(unused) inputBinding element: {}"
@@ -208,7 +278,7 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> Dict[str, Any]:
+def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -260,21 +330,33 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> Dict[str, Any]:
                     hints.append({"class": "NetworkAcess", "networkAccess": True})
                 if not listing:
                     hints.append(
-                        {
-                            "class": "LoadListingRequirement",
-                            "loadListing": "deep_listing",
-                        }
+                        cmap(
+                            {
+                                "class": "LoadListingRequirement",
+                                "loadListing": "deep_listing",
+                            }
+                        )
                     )
             elif isinstance(hints, MutableMapping):
                 if not network_access:
                     hints["NetworkAcess"] = {"networkAccess": True}
                 if not listing:
-                    hints["LoadListingRequirement"] = {"loadListing": "deep_listing"}
+                    hints["LoadListingRequirement"] = cmap(
+                        {"loadListing": "deep_listing"}
+                    )
             if "hints" not in document:
                 document["hints"] = hints
         elif document["class"] == "ExpressionTool":
             move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
+    return document
+
+
+def _v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    return _v1_0_to_v1_1(document, outdir)  # nothing needs doing for v1.2
+
+
+def _v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
     return document
 
 
