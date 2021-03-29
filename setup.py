@@ -27,7 +27,7 @@ setup(
     package_data={"cwlupgrader.tests": ["*.cwl"]},
     install_requires=[
         "setuptools",
-        "ruamel.yaml >= 0.14.12, < 0.16.14",
+        "ruamel.yaml >= 0.14.12, < 0.17.1",
         "typing",
         "schema_salad",
     ],
