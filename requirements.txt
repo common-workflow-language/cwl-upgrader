@@ -1,3 +1,3 @@
-ruamel.yaml >= 0.14.12, < 0.17.5
+ruamel.yaml >= 0.14.12, < 0.17.8
 typing
 schema-salad
