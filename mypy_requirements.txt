@@ -1,2 +1,2 @@
-mypy==0.902
+mypy==0.910
 pytest
