@@ -90,6 +90,8 @@ mkdir out
 tar --extract --directory=out -z -f ${package}*.tar.gz
 pushd out/${package}*
 make install-dep
+pip install "-r${DIR}/mypy_requirements.txt"
+make mypy
 make dist
 make test
 pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
