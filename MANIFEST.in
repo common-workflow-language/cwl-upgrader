@@ -1,2 +1,3 @@
 include MANIFEST.in Makefile
+include cwlupgrader/py.typed
 include tests/*.cwl
