@@ -30,7 +30,7 @@ DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
 	flake8 flake8-bugbear pyupgrade mypy
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.1  # please also update setup.py
+VERSION=1.2  # please also update setup.py
 
 ## all         : default task
 all:
@@ -157,7 +157,7 @@ pyupgrade: $(filter-out schema_salad/metaschema.py,${PYSOURCES})
 release: FORCE
 	./release-test.sh
 	. testenv2/bin/activate && \
-		testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
+		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
 		pip install twine && \
 		twine upload testenv2/src/${MODULE}/dist/* && \
 		git tag ${VERSION} && git push --tags
