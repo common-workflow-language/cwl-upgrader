@@ -327,7 +327,7 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
             # TODO: add comments to explain the extra hints
             if isinstance(hints, MutableSequence):
                 if not network_access:
-                    hints.append({"class": "NetworkAcess", "networkAccess": True})
+                    hints.append({"class": "NetworkAccess", "networkAccess": True})
                 if not listing:
                     hints.append(
                         cmap(
@@ -339,7 +339,7 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
                     )
             elif isinstance(hints, MutableMapping):
                 if not network_access:
-                    hints["NetworkAcess"] = {"networkAccess": True}
+                    hints["NetworkAccess"] = {"networkAccess": True}
                 if not listing:
                     hints["LoadListingRequirement"] = cmap(
                         {"loadListing": "deep_listing"}
