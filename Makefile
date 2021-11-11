@@ -30,7 +30,7 @@ DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
 	flake8 flake8-bugbear pyupgrade mypy
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2  # please also update setup.py
+VERSION=1.2.1  # please also update setup.py
 
 ## all         : default task
 all:
