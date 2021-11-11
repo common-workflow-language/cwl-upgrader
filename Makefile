@@ -22,35 +22,39 @@
 
 MODULE=cwl-upgrader
 PACKAGE=cwlupgrader
+EXTRAS=
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
-DEVPKGS=diff_cover black pylint coverage pep257 pytest-xdist \
-	flake8 flake8-bugbear pyupgrade mypy
+DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
+	isort wheel autoflake flake8-bugbear pyupgrade bandit \
+	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2.1  # please also update setup.py
+VERSION=1.2.2  # please also update setup.py
 
 ## all         : default task
-all:
-	pip install -e .
+all: dev
 
 ## help        : print this help message and exit
 help: Makefile
 	@sed -n 's/^##//p' $<
 
 ## install-dep : install most of the development dependencies via pip
-install-dep:
+install-dep: install-dependencies
+
+install-dependencies: FORCE
 	pip install --upgrade $(DEVPKGS)
+	pip install -r requirements.txt -r mypy-requirements.txt
 
-## install-deb-dep: install most of the dev dependencies via apt-get
-install-deb-dep:
-	sudo apt-get install $(DEBDEVPKGS)
-
-## install     : install the ${MODULE} module and scripts
+## install     : install the ${MODULE} module and script(s)
 install: FORCE
-	pip install .
+	pip install .$(EXTRAS)
+
+## dev     : install the ${MODULE} module in dev mode
+dev: install-dep
+	pip install -e .$(EXTRAS)
 
 ## dist        : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
@@ -67,8 +71,11 @@ clean: FORCE
 
 # Linting and code style related targets
 ## sorting imports using isort: https://github.com/timothycrosley/isort
-sort_imports:
-	isort ${PACKAGE}/*.py tests/*.py setup.py
+sort_imports: $(PYSOURCES)
+	isort $^ typeshed
+
+remove_unused_imports: $(PYSOURCES)
+	autoflake --in-place --remove-all-unused-imports $^
 
 pep257: pydocstyle
 ## pydocstyle      : check Python code style
@@ -83,14 +90,17 @@ diff_pydocstyle_report: pydocstyle_report.txt
 
 ## format      : check/fix all code indentation and formatting (runs black)
 format:
-	black setup.py cwlupgrader
+	black setup.py cwlupgrader tests
+
+format-check:
+	black --diff --check cwlupgrader setup.py typeshed
 
 ## pylint      : run static code analysis on Python code
 pylint: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
                 $^ -j0|| true
 
-pylint_report.txt: ${PYSOURCES}
+pylint_report.txt: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
 		$^ -j0> $@ || true
 
@@ -121,18 +131,18 @@ diff-cover.html: coverage.xml
 	diff-cover --compare-branch main $^ --html-report $@
 
 ## test        : run the ${MODULE} test suite
-test: FORCE
+test: $(PYSOURCES)
 	python setup.py test
 
 ## testcov     : run the ${MODULE} test suite and collect coverage
-testcov: $(pysources)
-	python setup.py test --addopts "--cov ${PACKAGE}"
+testcov: $(PYSOURCES)
+	python setup.py test --addopts "--cov" ${PYTEST_EXTRA}
 
-sloccount.sc: ${PYSOURCES} Makefile
+sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
 
 ## sloccount   : count lines of code
-sloccount: ${PYSOURCES} Makefile
+sloccount: $(PYSOURCES) Makefile
 	sloccount $^
 
 list-author-emails:
@@ -140,27 +150,31 @@ list-author-emails:
 	@git log --format='%aN,%aE' | sort -u | grep -v 'root'
 
 mypy3: mypy
-mypy: ${PYSOURCES}
+mypy: $(PYSOURCES)
 	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
 	then \
-		rm -Rf typeshed/2and3/ruamel/yaml ; \
+		rm -Rf typeshed/ruamel/yaml ; \
 		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-			typeshed/2and3/ruamel/ ; \
+			typeshed/ruamel/ ; \
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
-	MYPYPATH=$$MYPYPATH:typeshed/3:typeshed/2and3 mypy --disallow-untyped-calls \
-		 --warn-redundant-casts \
-		 ${PACKAGE}
+	MYPYPATH=$$MYPYPATH:typeshed mypy $^
 
-pyupgrade: $(filter-out schema_salad/metaschema.py,${PYSOURCES})
+pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
-release: FORCE
+release-test: FORCE
+	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
 	./release-test.sh
+
+release: release-test
 	. testenv2/bin/activate && \
 		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
 		pip install twine && \
 		twine upload testenv2/src/${MODULE}/dist/* && \
 		git tag v${VERSION} && git push --tags
+
+flake8: $(PYSOURCES)
+	flake8 $^
 
 FORCE:
 

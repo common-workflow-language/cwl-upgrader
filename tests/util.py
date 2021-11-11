@@ -1,20 +1,19 @@
 import os
 
-from pkg_resources import (  # type: ignore
+from pkg_resources import (
     Requirement,
     ResolutionError,
     resource_filename,
 )
 
 
-def get_data(filename):
+def get_data(filename: str) -> str:
     filename = os.path.normpath(filename)
     # normalizing path depending on OS or else it will cause problem when
     # joining path
     filepath = None
     try:
-        filepath = resource_filename(Requirement.parse("cwlupgrader"),
-                                     filename)
+        filepath = resource_filename(Requirement.parse("cwlupgrader"), filename)
     except ResolutionError:
         pass
     if not filepath or not os.path.isfile(filepath):
