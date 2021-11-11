@@ -160,7 +160,7 @@ release: FORCE
 		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
 		pip install twine && \
 		twine upload testenv2/src/${MODULE}/dist/* && \
-		git tag ${VERSION} && git push --tags
+		git tag v${VERSION} && git push --tags
 
 FORCE:
 
