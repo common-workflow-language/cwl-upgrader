@@ -56,7 +56,6 @@ def main(args: Optional[List[str]] = None) -> int:
 
 def run(args: argparse.Namespace) -> int:
     """Main function."""
-    imports: Set[str] = set()
     for path in args.inputs:
         _logger.info("Processing %s", path)
         document = load_cwl_document(path)
@@ -71,43 +70,75 @@ def run(args: argparse.Namespace) -> int:
                 if args.v1_1_only:
                     _logger.info("Skipping v1.1 document as requested: %s.", path)
                     continue
+
+            if args.v1_only:
+                target_version = "v1.0"
+            elif args.v1_1_only:
+                target_version = "v1.1"
+            else:
+                target_version = "latest"
             upgraded_document = upgrade_document(
-                document, args.v1_only, args.v1_1_only, args.dir, imports
+                document, args.dir, target_version=target_version
             )
             write_cwl_document(upgraded_document, Path(path).name, args.dir)
     return 0
 
 
 def upgrade_document(
-    document: Any, v1_only: bool, v1_1_only: bool, output_dir: str, imports: Set[str]
+    document: Any,
+    output_dir: str,
+    target_version: Optional[str] = "latest",
+    imports: Optional[Set[str]] = None,
 ) -> Any:
+    if imports is None:
+        imports = set()
+    supported_versions = ["v1.0", "v1.1", "v1.2", "latest"]
+    if target_version not in supported_versions:
+        _logger.error(f"Unsupported target cwlVersion: {target_version}")
+        return
     version = document["cwlVersion"]
     if version == "cwl:draft-3" or version == "draft-3":
-        if v1_only:
+        if target_version == "v1.0":
             main_updater = draft3_to_v1_0
             inner_updater = _draft3_to_v1_0
-        elif v1_1_only:
+        elif target_version == "v1.1":
             main_updater = draft3_to_v1_1
             inner_updater = _draft3_to_v1_1
-        else:
+        elif target_version == "v1.2":
             main_updater = draft3_to_v1_2
             inner_updater = _draft3_to_v1_2
+        elif target_version == "latest":
+            main_updater = draft3_to_v1_2
+            inner_updater = _draft3_to_v1_2
+        else:
+            pass  # does not happen
     elif version == "v1.0":
-        if v1_only:
+        if target_version == "v1.0":
             _logger.info("Skipping v1.0 document as requested.")
             return
-        elif v1_1_only:
+        elif target_version == "v1.1":
             main_updater = v1_0_to_v1_1
             inner_updater = _v1_0_to_v1_1
-        else:
+        elif target_version == "v1.2":
             main_updater = v1_0_to_v1_2
             inner_updater = _v1_0_to_v1_2
+        elif target_version == "latest":
+            main_updater = v1_0_to_v1_2
+            inner_updater = _v1_0_to_v1_2
+        else:
+            pass  # does not happen
     elif version == "v1.1":
-        if v1_1_only:
+        if target_version == "v1.1":
             _logger.info("Skipping v1.1 document as requested.")
             return
-        main_updater = v1_1_to_v1_2
-        inner_updater = _v1_1_to_v1_2
+        elif target_version == "v1.2":
+            main_updater = v1_1_to_v1_2
+            inner_updater = _v1_1_to_v1_2
+        elif target_version == "latest":
+            main_updater = v1_1_to_v1_2
+            inner_updater = _v1_1_to_v1_2
+        else:
+            pass  # does not happen? How to do the case that base version is v1.0?
     else:
         _logger.error(f"Unsupported cwlVersion: {version}")
     process_imports(document, imports, inner_updater, output_dir)
