@@ -28,7 +28,6 @@ setup(
     install_requires=[
         "setuptools",
         "ruamel.yaml >= 0.14.12, < 0.17.18",
-        "typing",
         "schema_salad",
     ],
     entry_points={"console_scripts": ["cwl-upgrader = cwlupgrader.main:main"]},
