@@ -13,7 +13,7 @@ PYTEST_RUNNER = ["pytest-runner", "pytest-cov"] if NEEDS_PYTEST else []
 
 setup(
     name="cwl-upgrader",
-    version="1.2.1",
+    version="1.2.2",
     description="Common Workflow Language standalone document upgrader",
     long_description=open(README).read(),
     author="Common Workflow Language contributors",
@@ -49,7 +49,7 @@ setup(
         "Topic :: Scientific/Engineering :: Bio-Informatics",
     ],
     zip_safe=True,
-    setup_requires=[] + PYTEST_RUNNER,
+    setup_requires=PYTEST_RUNNER,
     tests_require=["pytest < 6.3.0"],
     test_suite="tests",
 )
