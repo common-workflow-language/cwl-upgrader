@@ -19,6 +19,11 @@ defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
 _logger.addHandler(defaultStreamHandler)
 _logger.setLevel(logging.INFO)
 
+yaml = ruamel.yaml.main.YAML(typ="rt")
+yaml.allow_duplicate_keys = True
+yaml.preserve_quotes = True  # type: ignore
+yaml.default_flow_style = False
+
 
 def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
@@ -156,9 +161,6 @@ def load_cwl_document(path: str) -> Any:
     Also ensures that the filename is recorded so that SourceLine can produce
     informative error messages.
     """
-    yaml = ruamel.yaml.main.YAML(typ="rt")
-    yaml.allow_duplicate_keys = True
-    yaml.preserve_quotes = True  # type: ignore
     with open(path) as entry:
         document = yaml.load(entry)
         add_lc_filename(document, entry.name)
@@ -177,9 +179,7 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     with open(path, "w") as handle:
         if "cwlVersion" in document:
             handle.write("#!/usr/bin/env cwl-runner\n")
-        ruamel.yaml.main.round_trip_dump(
-            document, default_flow_style=False, stream=handle
-        )
+        yaml.dump(document, stream=handle)
     if "cwlVersion" in document:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
