@@ -56,6 +56,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
 def run(args: argparse.Namespace) -> int:
     """Main function."""
+    imports: Set[str] = set()
     for path in args.inputs:
         _logger.info("Processing %s", path)
         document = load_cwl_document(path)
@@ -78,7 +79,10 @@ def run(args: argparse.Namespace) -> int:
             else:
                 target_version = "latest"
             upgraded_document = upgrade_document(
-                document, args.dir, target_version=target_version
+                document,
+                args.dir,
+                target_version=target_version,
+                imports=imports,
             )
             write_cwl_document(upgraded_document, Path(path).name, args.dir)
     return 0
