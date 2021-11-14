@@ -24,7 +24,7 @@ setup(
     packages=["cwlupgrader", "cwlupgrader.tests"],
     include_package_data=True,
     package_dir={"cwlupgrader.tests": "tests"},
-    package_data={"cwlupgrader.testdata": ["*.cwl"]},
+    package_data={"cwlupgrader.tests": ["../testdata/**/*.cwl"]},
     install_requires=[
         "setuptools",
         "ruamel.yaml >= 0.14.12, < 0.17.18",
