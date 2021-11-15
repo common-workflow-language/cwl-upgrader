@@ -586,18 +586,20 @@ def input_output_clean(document: Dict[str, Any]) -> None:
                 if "$import" in param:
                     meta = True
         if not meta:
-            for index2, param in enumerate(document[param_type]):
+            for index2, param2 in enumerate(document[param_type]):
                 with SourceLine(document[param_type], index2, Exception):
-                    param_id = param.pop("id").lstrip("#")
-                    if "type" in param:
-                        param["type"] = shorten_type(param["type"])
-                        array_type_raise_sf(param)
-                    if "description" in param:
-                        param["doc"] = param.pop("description")
-                    if len(param) > 1:
-                        new_section[param_id] = sort_input_or_output(param)
+                    param_id = param2.pop("id").lstrip("#")
+                    if "type" in param2:
+                        param2["type"] = shorten_type(param2["type"])
+                        array_type_raise_sf(param2)
+                    if "description" in param2:
+                        param2["doc"] = param2.pop("description")
+                    if len(param2) > 1:
+                        new_section[param_id] = sort_input_or_output(param2)
+                    elif "type" in param2 and isinstance(param2["type"], str):
+                        new_section[param_id] = param2.popitem()[1]
                     else:
-                        new_section[param_id] = param.popitem()[1]
+                        new_section[param_id] = param2
             document[param_type] = new_section
 
 
