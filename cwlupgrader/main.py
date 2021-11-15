@@ -195,12 +195,14 @@ def process_imports(
     if isinstance(document, CommentedMap):
         for key, value in document.items():
             if key == "$import":
-                if value not in imports:
+                if value not in imports and not value.startswith("#"):
+                    with SourceLine(document, key, Exception):
+                        import_doc = load_cwl_document(
+                            Path(document.lc.filename).parent / value
+                        )
                     write_cwl_document(
                         updater(
-                            load_cwl_document(
-                                Path(document.lc.filename).parent / value
-                            ),
+                            import_doc,
                             outdir,
                         ),
                         Path(value).name,
