@@ -36,3 +36,13 @@ def test_v1_1_to_v1_2(tmp_path: Path) -> None:
     doc = load_cwl_document(get_data("testdata/v1.1/listing_deep1.cwl"))
     upgraded = upgrade_document(doc, str(tmp_path), "v1.2")
     assert doc == upgraded
+
+
+def test_packed_graph(tmp_path: Path) -> None:
+    """Test packed document with $graph."""
+    main([f"--dir={tmp_path}", "--v1.1-only", get_data("testdata/v1.0/conflict-wf.cwl")])
+    assert filecmp.cmp(
+        get_data("testdata/v1.1/conflict-wf.cwl"),
+        tmp_path / "conflict-wf.cwl",
+        shallow=False,
+    )

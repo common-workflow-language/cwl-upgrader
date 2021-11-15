@@ -217,15 +217,14 @@ def process_imports(
 def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     """CWL v1.0.x to v1.1 transformation loop."""
     _v1_0_to_v1_1(document, outdir)
-    if isinstance(document, MutableMapping):
-        for key, value in document.items():
-            with SourceLine(document, key, Exception):
-                if isinstance(value, CommentedMap):
-                    document[key] = _v1_0_to_v1_1(value, outdir)
-                elif isinstance(value, list):
-                    for index, entry in enumerate(value):
-                        if isinstance(entry, CommentedMap):
-                            value[index] = _v1_0_to_v1_1(entry, outdir)
+    for key, value in document.items():
+        with SourceLine(document, key, Exception):
+            if isinstance(value, CommentedMap):
+                document[key] = _v1_0_to_v1_1(value, outdir)
+            elif isinstance(value, list):
+                for index, entry in enumerate(value):
+                    if isinstance(entry, CommentedMap):
+                        value[index] = _v1_0_to_v1_1(entry, outdir)
     document["cwlVersion"] = "v1.1"
     return sort_v1_0(document)
 
@@ -345,12 +344,17 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
                                 _v1_0_to_v1_1(process, outdir)
                                 if "cwlVersion" in process:
                                     del process["cwlVersion"]
-                            elif isinstance(entry["run"], str):
+                            elif (
+                                isinstance(entry["run"], str)
+                                and "#" not in entry["run"]
+                            ):
                                 path = Path(document.lc.filename).parent / entry["run"]
                                 process = v1_0_to_v1_1(
                                     load_cwl_document(str(path)), outdir
                                 )
                                 write_cwl_document(process, path.name, outdir)
+                            elif isinstance(entry["run"], str) and "#" in entry["run"]:
+                                pass  # reference to $graph entry
                             else:
                                 raise Exception(
                                     "'run' entry was neither a CWL Process nor "
