@@ -66,21 +66,16 @@ def main(args: Optional[List[str]] = None) -> int:
 def run(args: argparse.Namespace) -> int:
     """Main function."""
     imports: Set[str] = set()
-    if args.dir:
-        out_dir = Path(args.dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        out_dir = Path.cwd()
+    root_out_dir = Path(args.dir)
+    root_out_dir.mkdir(parents=True, exist_ok=True)
     for p in args.inputs:
         path = Path(os.path.normpath(p))
         _logger.info("Processing %s", path)
         if not p.startswith("../") and path.resolve() != path:
-            # common_path = os.path.commonpath([out_dir.resolve(), path.resolve()])
-            # current_out_dir = out_dir / os.path.relpath(path, start=common_path)
-            current_out_dir = out_dir / path.parent
+            current_out_dir = root_out_dir / path.parent
             current_out_dir.mkdir(parents=True, exist_ok=True)
         else:
-            current_out_dir = out_dir
+            current_out_dir = root_out_dir
         document = load_cwl_document(path)
         if "cwlVersion" not in document:
             _logger.warn("No cwlVersion found in %s, skipping it.", path)
@@ -103,6 +98,7 @@ def run(args: argparse.Namespace) -> int:
             upgraded_document = upgrade_document(
                 document,
                 current_out_dir,
+                root_out_dir,
                 target_version=target_version,
                 imports=imports,
             )
@@ -113,6 +109,7 @@ def run(args: argparse.Namespace) -> int:
 def upgrade_document(
     document: Any,
     output_dir: Path,
+    root_dir: Path,
     target_version: Optional[str] = "latest",
     imports: Optional[Set[str]] = None,
 ) -> Any:
@@ -167,8 +164,8 @@ def upgrade_document(
             pass  # does not happen? How to do the case that base version is v1.0?
     else:
         _logger.error(f"Unsupported cwlVersion: {version}")
-    process_imports(document, imports, inner_updater, output_dir)
-    return main_updater(document, output_dir)
+    process_imports(document, imports, inner_updater, output_dir, root_dir)
+    return main_updater(document, output_dir, root_dir)
 
 
 def load_cwl_document(path: Union[str, Path]) -> Any:
@@ -200,8 +197,23 @@ def write_cwl_document(document: Any, path: Path) -> None:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
+def check_path(root_dir: Path, new_path: Path) -> None:
+    """Issue a warning if the new path is outside of the root path."""
+    common_path = Path(os.path.commonpath([root_dir.resolve(), new_path.resolve()]))
+    if common_path != root_dir:
+        _logger.warn(
+            "Writing file, '%s', outside of the output directory, '%s'.",
+            os.path.normpath(new_path),
+            root_dir,
+        )
+
+
 def process_imports(
-    document: Any, imports: Set[str], updater: Callable[[Any, Path], Any], outdir: Path
+    document: Any,
+    imports: Set[str],
+    updater: Callable[[Any, Path, Path], Any],
+    out_dir: Path,
+    root_dir: Path,
 ) -> None:
     """Find any '$import's and process them."""
     if isinstance(document, CommentedMap):
@@ -212,72 +224,85 @@ def process_imports(
                         import_doc = load_cwl_document(
                             Path(document.lc.filename).parent / value
                         )
-                    new_path = (outdir / value).resolve()
+                    new_path = (out_dir / value).resolve()
+                    check_path(root_dir, new_path)
                     new_path.parent.mkdir(parents=True, exist_ok=True)
-                    write_cwl_document(updater(import_doc, outdir), new_path)
+                    write_cwl_document(updater(import_doc, out_dir, root_dir), new_path)
                     imports.add(value)
             else:
-                process_imports(value, imports, updater, outdir)
+                process_imports(value, imports, updater, out_dir, root_dir)
     elif isinstance(document, MutableSequence):
         for entry in document:
-            process_imports(entry, imports, updater, outdir)
+            process_imports(entry, imports, updater, out_dir, root_dir)
 
 
-def v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
+def v1_0_to_v1_1(document: CommentedMap, out_dir: Path, root_dir: Path) -> CommentedMap:
     """CWL v1.0.x to v1.1 transformation loop."""
-    _v1_0_to_v1_1(document, outdir)
+    _v1_0_to_v1_1(document, out_dir, root_dir)
     for key, value in document.items():
         with SourceLine(document, key, Exception):
             if isinstance(value, CommentedMap):
-                document[key] = _v1_0_to_v1_1(value, outdir)
+                document[key] = _v1_0_to_v1_1(value, out_dir, root_dir)
             elif isinstance(value, list):
                 for index, entry in enumerate(value):
                     if isinstance(entry, CommentedMap):
-                        value[index] = _v1_0_to_v1_1(entry, outdir)
+                        value[index] = _v1_0_to_v1_1(entry, out_dir, root_dir)
     document["cwlVersion"] = "v1.1"
     return sort_v1_0(document)
 
 
-def v1_0_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
+def v1_0_to_v1_2(document: CommentedMap, out_dir: Path, root_dir: Path) -> CommentedMap:
     """CWL v1.0.x to v1.2 transformation."""
-    document = v1_0_to_v1_1(document, outdir)
+    document = v1_0_to_v1_1(document, out_dir, root_dir)
     document["cwlVersion"] = "v1.2"
     return document
 
 
-def v1_1_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
+def v1_1_to_v1_2(document: CommentedMap, out_dir: Path, root_dir: Path) -> CommentedMap:
     """CWL v1.1 to v1.2 transformation."""
     document["cwlVersion"] = "v1.2"
     return document
 
 
-def draft3_to_v1_0(document: CommentedMap, outdir: Path) -> CommentedMap:
+def draft3_to_v1_0(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     """Transformation loop."""
-    _draft3_to_v1_0(document, outdir)
+    _draft3_to_v1_0(document, out_dir, root_dir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
             with SourceLine(document, key, Exception):
                 if isinstance(value, CommentedMap):
-                    document[key] = _draft3_to_v1_0(value, outdir)
+                    document[key] = _draft3_to_v1_0(value, out_dir, root_dir)
                 elif isinstance(value, list):
                     for index, entry in enumerate(value):
                         if isinstance(entry, CommentedMap):
-                            value[index] = _draft3_to_v1_0(entry, outdir)
+                            value[index] = _draft3_to_v1_0(entry, out_dir, root_dir)
     document["cwlVersion"] = "v1.0"
     return sort_v1_0(document)
 
 
-def draft3_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
+def draft3_to_v1_1(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     """transformation loop."""
-    return v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir)
+    return v1_0_to_v1_1(draft3_to_v1_0(document, out_dir, root_dir), out_dir, root_dir)
 
 
-def draft3_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
+def draft3_to_v1_2(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     """transformation loop."""
-    return v1_1_to_v1_2(v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir), outdir)
+    return v1_1_to_v1_2(
+        v1_0_to_v1_1(draft3_to_v1_0(document, out_dir, root_dir), out_dir, root_dir),
+        out_dir,
+        root_dir,
+    )
 
 
-def _draft3_to_v1_0(document: CommentedMap, outdir: Path) -> CommentedMap:
+def _draft3_to_v1_0(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -302,12 +327,16 @@ def _draft3_to_v1_0(document: CommentedMap, outdir: Path) -> CommentedMap:
     return document
 
 
-def _draft3_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
-    return v1_0_to_v1_1(_draft3_to_v1_0(document, outdir), outdir)
+def _draft3_to_v1_1(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
+    return v1_0_to_v1_1(_draft3_to_v1_0(document, out_dir, root_dir), out_dir, root_dir)
 
 
-def _draft3_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
-    return _draft3_to_v1_1(document, outdir)  # nothing needs doing for 1.2
+def _draft3_to_v1_2(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
+    return _draft3_to_v1_1(document, out_dir, root_dir)  # nothing needs doing for 1.2
 
 
 WORKFLOW_INPUT_INPUTBINDING = (
@@ -325,7 +354,9 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
+def _v1_0_to_v1_1(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -339,7 +370,7 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
                         upgrade_v1_0_hints_and_reqs(entry)
                         if "run" in entry and isinstance(entry["run"], CommentedMap):
                             process = entry["run"]
-                            _v1_0_to_v1_1(process, outdir)
+                            _v1_0_to_v1_1(process, out_dir, root_dir)
                             if "cwlVersion" in process:
                                 del process["cwlVersion"]
             elif isinstance(steps, MutableMapping):
@@ -350,18 +381,21 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
                         if "run" in entry:
                             if isinstance(entry["run"], CommentedMap):
                                 process = entry["run"]
-                                _v1_0_to_v1_1(process, outdir)
+                                _v1_0_to_v1_1(process, out_dir, root_dir)
                                 if "cwlVersion" in process:
                                     del process["cwlVersion"]
                             elif (
                                 isinstance(entry["run"], str)
                                 and "#" not in entry["run"]
                             ):
-                                path = (
+                                run_path = (
                                     Path(document.lc.filename).parent / entry["run"]
                                 ).resolve()
-                                process = v1_0_to_v1_1(load_cwl_document(path), outdir)
-                                new_path = (outdir / entry["run"]).resolve()
+                                process = v1_0_to_v1_1(
+                                    load_cwl_document(run_path), out_dir, root_dir
+                                )
+                                new_path = out_dir / entry["run"]
+                                check_path(root_dir, new_path)
                                 new_path.parent.mkdir(parents=True, exist_ok=True)
                                 write_cwl_document(process, new_path)
                             elif isinstance(entry["run"], str) and "#" in entry["run"]:
@@ -406,11 +440,15 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
     return document
 
 
-def _v1_0_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
-    return _v1_0_to_v1_1(document, outdir)  # nothing needs doing for v1.2
+def _v1_0_to_v1_2(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
+    return _v1_0_to_v1_1(document, out_dir, root_dir)  # nothing needs doing for v1.2
 
 
-def _v1_1_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
+def _v1_1_to_v1_2(
+    document: CommentedMap, out_dir: Path, root_dir: Path
+) -> CommentedMap:
     return document
 
 
