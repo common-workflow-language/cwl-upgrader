@@ -1,10 +1,6 @@
 import os
 
-from pkg_resources import (
-    Requirement,
-    ResolutionError,
-    resource_filename,
-)
+from pkg_resources import Requirement, ResolutionError, resource_filename
 
 
 def get_data(filename: str) -> str:

@@ -4,6 +4,8 @@
 import argparse
 import copy
 import logging
+import os
+import os.path
 import stat
 import sys
 from collections.abc import MutableSequence, Sequence
@@ -62,6 +64,8 @@ def main(args: Optional[List[str]] = None) -> int:
 def run(args: argparse.Namespace) -> int:
     """Main function."""
     imports: Set[str] = set()
+    if args.dir and not os.path.exists(args.dir):
+        os.makedirs(args.dir)
     for path in args.inputs:
         _logger.info("Processing %s", path)
         document = load_cwl_document(path)
