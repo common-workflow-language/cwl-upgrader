@@ -37,21 +37,21 @@ def test_draft3_tool_long_form_arrays(tmp_path: Path) -> None:
 def test_invalid_target(tmp_path: Path) -> None:
     """Test for invalid target version"""
     doc = load_cwl_document(get_data("testdata/v1.0/listing_deep1.cwl"))
-    result = upgrade_document(doc, str(tmp_path), "invalid-version")
+    result = upgrade_document(doc, tmp_path, "invalid-version")
     assert result is None
 
 
 def test_v1_0_to_v1_1(tmp_path: Path) -> None:
     """Basic CWL v1.0 to CWL v1.1 test."""
     doc = load_cwl_document(get_data("testdata/v1.0/listing_deep1.cwl"))
-    upgraded = upgrade_document(doc, str(tmp_path), "v1.1")
+    upgraded = upgrade_document(doc, tmp_path, "v1.1")
     assert doc == upgraded
 
 
 def test_v1_1_to_v1_2(tmp_path: Path) -> None:
     """Basic CWL v1.1 to CWL v1.2 test."""
     doc = load_cwl_document(get_data("testdata/v1.1/listing_deep1.cwl"))
-    upgraded = upgrade_document(doc, str(tmp_path), "v1.2")
+    upgraded = upgrade_document(doc, tmp_path, "v1.2")
     assert doc == upgraded
 
 

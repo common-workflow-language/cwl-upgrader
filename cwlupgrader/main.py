@@ -31,7 +31,9 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to upgrade CWL documents from one version to another. "
-        "Supports upgrading 'draft-3', 'v1.0', and 'v1.1' to 'v1.2'",
+        "Supports upgrading 'draft-3', 'v1.0', and 'v1.1' to 'v1.2'. For workflows "
+        'that include "$import" or "run:" reference that refer to parent '
+        "directories, start cwl-upgrader from the topmost directory of your project.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
@@ -40,11 +42,11 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     parser.add_argument(
         "--v1.1-only",
         dest="v1_1_only",
-        help="Don't upgrade past cwlVersion: v1.1",
+        help="Don't upgrade past cwlVersion: v1.1.",
         action="store_true",
     )
     parser.add_argument(
-        "--dir", help="Directory in which to save converted files", default=Path.cwd()
+        "--dir", help="Directory in which to save converted files.", default=Path.cwd()
     )
     parser.add_argument(
         "inputs",
@@ -64,10 +66,21 @@ def main(args: Optional[List[str]] = None) -> int:
 def run(args: argparse.Namespace) -> int:
     """Main function."""
     imports: Set[str] = set()
-    if args.dir and not os.path.exists(args.dir):
-        os.makedirs(args.dir)
-    for path in args.inputs:
+    if args.dir:
+        out_dir = Path(args.dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        out_dir = Path.cwd()
+    for p in args.inputs:
+        path = Path(os.path.normpath(p))
         _logger.info("Processing %s", path)
+        if not p.startswith("../") and path.resolve() != path:
+            # common_path = os.path.commonpath([out_dir.resolve(), path.resolve()])
+            # current_out_dir = out_dir / os.path.relpath(path, start=common_path)
+            current_out_dir = out_dir / path.parent
+            current_out_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            current_out_dir = out_dir
         document = load_cwl_document(path)
         if "cwlVersion" not in document:
             _logger.warn("No cwlVersion found in %s, skipping it.", path)
@@ -89,17 +102,17 @@ def run(args: argparse.Namespace) -> int:
                 target_version = "latest"
             upgraded_document = upgrade_document(
                 document,
-                args.dir,
+                current_out_dir,
                 target_version=target_version,
                 imports=imports,
             )
-            write_cwl_document(upgraded_document, Path(path).name, args.dir)
+            write_cwl_document(upgraded_document, current_out_dir / (path.name))
     return 0
 
 
 def upgrade_document(
     document: Any,
-    output_dir: str,
+    output_dir: Path,
     target_version: Optional[str] = "latest",
     imports: Optional[Set[str]] = None,
 ) -> Any:
@@ -158,7 +171,7 @@ def upgrade_document(
     return main_updater(document, output_dir)
 
 
-def load_cwl_document(path: str) -> Any:
+def load_cwl_document(path: Union[str, Path]) -> Any:
     """
     Load the given path using the Ruamel YAML round-trip loader.
 
@@ -171,7 +184,7 @@ def load_cwl_document(path: str) -> Any:
     return document
 
 
-def write_cwl_document(document: Any, name: str, dirname: str) -> None:
+def write_cwl_document(document: Any, path: Path) -> None:
     """
     Serialize the document using the Ruamel YAML round trip dumper.
 
@@ -179,7 +192,6 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     set the executable bit if it is a CWL document.
     """
     ruamel.yaml.scalarstring.walk_tree(document)
-    path = Path(dirname) / name
     with open(path, "w") as handle:
         if "cwlVersion" in document:
             handle.write("#!/usr/bin/env cwl-runner\n")
@@ -189,7 +201,7 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
 
 
 def process_imports(
-    document: Any, imports: Set[str], updater: Callable[[Any, str], Any], outdir: str
+    document: Any, imports: Set[str], updater: Callable[[Any, Path], Any], outdir: Path
 ) -> None:
     """Find any '$import's and process them."""
     if isinstance(document, CommentedMap):
@@ -200,14 +212,9 @@ def process_imports(
                         import_doc = load_cwl_document(
                             Path(document.lc.filename).parent / value
                         )
-                    write_cwl_document(
-                        updater(
-                            import_doc,
-                            outdir,
-                        ),
-                        Path(value).name,
-                        outdir,
-                    )
+                    new_path = (outdir / value).resolve()
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_cwl_document(updater(import_doc, outdir), new_path)
                     imports.add(value)
             else:
                 process_imports(value, imports, updater, outdir)
@@ -216,7 +223,7 @@ def process_imports(
             process_imports(entry, imports, updater, outdir)
 
 
-def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+def v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
     """CWL v1.0.x to v1.1 transformation loop."""
     _v1_0_to_v1_1(document, outdir)
     for key, value in document.items():
@@ -231,20 +238,20 @@ def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     return sort_v1_0(document)
 
 
-def v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def v1_0_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     """CWL v1.0.x to v1.2 transformation."""
     document = v1_0_to_v1_1(document, outdir)
     document["cwlVersion"] = "v1.2"
     return document
 
 
-def v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def v1_1_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     """CWL v1.1 to v1.2 transformation."""
     document["cwlVersion"] = "v1.2"
     return document
 
 
-def draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
+def draft3_to_v1_0(document: CommentedMap, outdir: Path) -> CommentedMap:
     """Transformation loop."""
     _draft3_to_v1_0(document, outdir)
     if isinstance(document, MutableMapping):
@@ -260,17 +267,17 @@ def draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
     return sort_v1_0(document)
 
 
-def draft3_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+def draft3_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
     """transformation loop."""
     return v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir)
 
 
-def draft3_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def draft3_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     """transformation loop."""
     return v1_1_to_v1_2(v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir), outdir)
 
 
-def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
+def _draft3_to_v1_0(document: CommentedMap, outdir: Path) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -295,11 +302,11 @@ def _draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
     return document
 
 
-def _draft3_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+def _draft3_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
     return v1_0_to_v1_1(_draft3_to_v1_0(document, outdir), outdir)
 
 
-def _draft3_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def _draft3_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     return _draft3_to_v1_1(document, outdir)  # nothing needs doing for 1.2
 
 
@@ -318,7 +325,7 @@ V1_0_TO_V1_1_REWRITE = {
 }
 
 
-def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
+def _v1_0_to_v1_1(document: CommentedMap, outdir: Path) -> CommentedMap:
     """Inner loop for transforming draft-3 to v1.0."""
     if "class" in document:
         if document["class"] == "Workflow":
@@ -350,11 +357,13 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
                                 isinstance(entry["run"], str)
                                 and "#" not in entry["run"]
                             ):
-                                path = Path(document.lc.filename).parent / entry["run"]
-                                process = v1_0_to_v1_1(
-                                    load_cwl_document(str(path)), outdir
-                                )
-                                write_cwl_document(process, path.name, outdir)
+                                path = (
+                                    Path(document.lc.filename).parent / entry["run"]
+                                ).resolve()
+                                process = v1_0_to_v1_1(load_cwl_document(path), outdir)
+                                new_path = (outdir / entry["run"]).resolve()
+                                new_path.parent.mkdir(parents=True, exist_ok=True)
+                                write_cwl_document(process, new_path)
                             elif isinstance(entry["run"], str) and "#" in entry["run"]:
                                 pass  # reference to $graph entry
                             else:
@@ -397,11 +406,11 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
     return document
 
 
-def _v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def _v1_0_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     return _v1_0_to_v1_1(document, outdir)  # nothing needs doing for v1.2
 
 
-def _v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+def _v1_1_to_v1_2(document: CommentedMap, outdir: Path) -> CommentedMap:
     return document
 
 
