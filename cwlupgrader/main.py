@@ -366,13 +366,13 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
             move_up_loadcontents(document)
             network_access = has_hint_or_req(document, "NetworkAccess")
             listing = has_hint_or_req(document, "LoadListingRequirement")
-            hints = document.get("hints", {})
+            reqs = document.get("requirements", {})
             # TODO: add comments to explain the extra hints
-            if isinstance(hints, MutableSequence):
+            if isinstance(reqs, MutableSequence):
                 if not network_access:
-                    hints.append({"class": "NetworkAccess", "networkAccess": True})
+                    reqs.append({"class": "NetworkAccess", "networkAccess": True})
                 if not listing:
-                    hints.append(
+                    reqs.append(
                         cmap(
                             {
                                 "class": "LoadListingRequirement",
@@ -380,15 +380,15 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
                             }
                         )
                     )
-            elif isinstance(hints, MutableMapping):
+            elif isinstance(reqs, MutableMapping):
                 if not network_access:
-                    hints["NetworkAccess"] = {"networkAccess": True}
+                    reqs["NetworkAccess"] = {"networkAccess": True}
                 if not listing:
-                    hints["LoadListingRequirement"] = cmap(
+                    reqs["LoadListingRequirement"] = cmap(
                         {"loadListing": "deep_listing"}
                     )
-            if "hints" not in document:
-                document["hints"] = hints
+            if "requirements" not in document:
+                document["requirements"] = reqs
         elif document["class"] == "ExpressionTool":
             move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
