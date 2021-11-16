@@ -42,10 +42,18 @@ def test_invalid_target(tmp_path: Path) -> None:
 
 
 def test_v1_0_to_v1_1_load_listing(tmp_path: Path) -> None:
-    """Basic CWL v1.0 to CWL v1.1 test with LoadListingRequirement."""
+    """Basic CWL v1.0 to CWL v1.1 test with LoadListingRequirement (map notation)."""
     doc = load_cwl_document(get_data("testdata/v1.0/listing_deep1.cwl"))
     upgraded = upgrade_document(doc, str(tmp_path), "v1.1")
     expected = load_cwl_document(get_data("testdata/v1.1/listing_deep1.cwl"))
+    assert upgraded == expected
+
+
+def test_v1_0_to_v1_1_load_listing_arr(tmp_path: Path) -> None:
+    """Basic CWL v1.0 to CWL v1.1 test with LoadListingRequirement (array notation)."""
+    doc = load_cwl_document(get_data("testdata/v1.0/listing_deep1-arr.cwl"))
+    upgraded = upgrade_document(doc, str(tmp_path), "v1.1")
+    expected = load_cwl_document(get_data("testdata/v1.1/listing_deep1-arr.cwl"))
     assert upgraded == expected
 
 
