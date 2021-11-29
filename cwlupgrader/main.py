@@ -161,7 +161,7 @@ def upgrade_document(
         _logger.error(f"Unknown cwlVersion in source document: {version}")
         return
 
-    if main_updater is None:
+    if main_updater is None or inner_updater is None:
         _logger.error(f"Cannot downgrade from cwlVersion {version} to {target_version}")
         return
 
