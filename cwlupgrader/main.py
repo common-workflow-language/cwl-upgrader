@@ -93,7 +93,8 @@ def run(args: argparse.Namespace) -> int:
                 target_version=target_version,
                 imports=imports,
             )
-            write_cwl_document(upgraded_document, Path(path).name, args.dir)
+            if upgraded_document is not None:
+                write_cwl_document(upgraded_document, Path(path).name, args.dir)
     return 0
 
 
@@ -109,7 +110,11 @@ def upgrade_document(
     if target_version not in supported_versions:
         _logger.error(f"Unsupported target cwlVersion: {target_version}")
         return
+
     version = document["cwlVersion"]
+    main_updater = None
+    inner_updater = None
+
     if version == "cwl:draft-3" or version == "draft-3":
         if target_version == "v1.0":
             main_updater = draft3_to_v1_0
@@ -123,11 +128,9 @@ def upgrade_document(
         elif target_version == "latest":
             main_updater = draft3_to_v1_2
             inner_updater = _draft3_to_v1_2
-        else:
-            pass  # does not happen
     elif version == "v1.0":
         if target_version == "v1.0":
-            _logger.info("Skipping v1.0 document as requested.")
+            _logger.info("Not upgrading v1.0 document as requested.")
             return
         elif target_version == "v1.1":
             main_updater = v1_0_to_v1_1
@@ -138,11 +141,9 @@ def upgrade_document(
         elif target_version == "latest":
             main_updater = v1_0_to_v1_2
             inner_updater = _v1_0_to_v1_2
-        else:
-            pass  # does not happen
     elif version == "v1.1":
         if target_version == "v1.1":
-            _logger.info("Skipping v1.1 document as requested.")
+            _logger.info("Not upgrading v1.1 document as requested.")
             return
         elif target_version == "v1.2":
             main_updater = v1_1_to_v1_2
@@ -150,10 +151,20 @@ def upgrade_document(
         elif target_version == "latest":
             main_updater = v1_1_to_v1_2
             inner_updater = _v1_1_to_v1_2
-        else:
-            pass  # does not happen? How to do the case that base version is v1.0?
+    elif version == "v1.2":
+        if target_version == "v1.2":
+            _logger.info("Not upgrading v1.2 document as requested.")
+            return
+        elif target_version == "latest":
+            return
     else:
-        _logger.error(f"Unsupported cwlVersion: {version}")
+        _logger.error(f"Unknown cwlVersion in source document: {version}")
+        return
+
+    if main_updater is None:
+        _logger.error(f"Cannot downgrade from cwlVersion {version} to {target_version}")
+        return
+
     process_imports(document, imports, inner_updater, output_dir)
     return main_updater(document, output_dir)
 
