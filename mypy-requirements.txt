@@ -1,2 +1,2 @@
-mypy==0.960
+mypy==0.971
 types-setuptools
