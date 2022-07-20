@@ -27,7 +27,10 @@ setup(
     package_data={"cwlupgrader.tests": ["../testdata/**/*.cwl"]},
     install_requires=[
         "setuptools",
-        "ruamel.yaml >= 0.14.12, < 0.17.22",
+        "ruamel.yaml >= 0.16.0, < 0.17.22;python_version>='3.10'",
+        "ruamel.yaml >= 0.15.98, < 0.17.22;python_version>='3.9'",
+        "ruamel.yaml >= 0.15.78, < 0.17.22;python_version>='3.8'",
+        "ruamel.yaml >= 0.15.71, < 0.17.22",
         "schema_salad",
     ],
     entry_points={"console_scripts": ["cwl-upgrader = cwlupgrader.main:main"]},

@@ -72,7 +72,7 @@ clean: FORCE
 # Linting and code style related targets
 ## sorting imports using isort: https://github.com/timothycrosley/isort
 sort_imports: $(PYSOURCES)
-	isort $^ typeshed
+	isort $^
 
 remove_unused_imports: $(PYSOURCES)
 	autoflake --in-place --remove-all-unused-imports $^
@@ -93,7 +93,7 @@ format:
 	black setup.py cwlupgrader tests
 
 format-check:
-	black --diff --check cwlupgrader setup.py typeshed
+	black --diff --check cwlupgrader setup.py
 
 ## pylint      : run static code analysis on Python code
 pylint: $(PYSOURCES)
@@ -153,11 +153,11 @@ mypy3: mypy
 mypy: $(PYSOURCES)
 	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
 	then \
-		rm -Rf typeshed/ruamel/yaml ; \
+		rm -Rf mypy-stubs/ruamel/yaml ; \
 		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-			typeshed/ruamel/ ; \
+			mypy-stubs/ruamel/ ; \
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
-	MYPYPATH=$$MYPYPATH:typeshed mypy $^
+	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
 
 pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
