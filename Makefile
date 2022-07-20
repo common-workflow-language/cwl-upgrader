@@ -32,7 +32,7 @@ DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
 	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2.2  # please also update setup.py
+VERSION=1.2.3  # please also update setup.py
 
 ## all         : default task
 all: dev
