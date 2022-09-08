@@ -34,35 +34,38 @@ DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
 VERSION=1.2.3  # please also update setup.py
 
-## all         : default task
+## all                    : default task (install cwl-upgrader in dev mode)
 all: dev
 
-## help        : print this help message and exit
+## help                   : print this help message and exit
 help: Makefile
 	@sed -n 's/^##//p' $<
 
-## install-dep : install most of the development dependencies via pip
+## cleanup                : shortcut for "make sort_imports format flake8 diff_pydocstyle_report"
+cleanup: sort_imports format flake8 diff_pydocstyle_report
+
+## install-dep            : install most of the development dependencies via pip
 install-dep: install-dependencies
 
 install-dependencies: FORCE
 	pip install --upgrade $(DEVPKGS)
 	pip install -r requirements.txt -r mypy-requirements.txt
 
-## install     : install the ${MODULE} module and script(s)
+## install                : install the cwlupgrader package and scripts
 install: FORCE
 	pip install .$(EXTRAS)
 
-## dev     : install the ${MODULE} module in dev mode
+## dev                    : install the cwlupgrader package in dev mode
 dev: install-dep
 	pip install -e .$(EXTRAS)
 
-## dist        : create a module package for distribution
+## dist                   : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
 	python setup.py sdist bdist_wheel
 
-## clean       : clean up all temporary / machine-generated files
+## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODILE}/*.pyc tests/*.pyc
 	python setup.py clean --all || true
@@ -70,7 +73,7 @@ clean: FORCE
 	rm -f diff-cover.html
 
 # Linting and code style related targets
-## sorting imports using isort: https://github.com/timothycrosley/isort
+## sort_import            : sorting imports using isort: https://github.com/timothycrosley/isort
 sort_imports: $(PYSOURCES)
 	isort $^
 
@@ -78,24 +81,29 @@ remove_unused_imports: $(PYSOURCES)
 	autoflake --in-place --remove-all-unused-imports $^
 
 pep257: pydocstyle
-## pydocstyle      : check Python code style
+## pydocstyle             : check Python docstring style
 pydocstyle: $(PYSOURCES)
 	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
 
 pydocstyle_report.txt: $(PYSOURCES)
 	pydocstyle setup.py $^ > $@ 2>&1 || true
 
+## diff_pydocstyle_report : check Python docstring style for changed files only
 diff_pydocstyle_report: pydocstyle_report.txt
-	diff-quality --compare-branch=main --violations=pycodestyle --fail-under=100 $^
+	diff-quality --compare-branch=main --violations=pydocstyle --fail-under=100 $^
 
-## format      : check/fix all code indentation and formatting (runs black)
+## codespell              : check for common misspellings
+codespell:
+	codespell -w $(shell git ls-files | grep -v mypy-stubs | grep -v gitignore | grep -v EDAM.owl | grep -v pre.yml | grep -v test_schema)
+
+## format                 : check/fix all code indentation and formatting (runs black)
 format:
 	black setup.py cwlupgrader tests
 
 format-check:
 	black --diff --check cwlupgrader setup.py
 
-## pylint      : run static code analysis on Python code
+## pylint                 : run static code analysis on Python code
 pylint: $(PYSOURCES)
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" \
                 $^ -j0|| true
@@ -105,7 +113,7 @@ pylint_report.txt: $(PYSOURCES)
 		$^ -j0> $@ || true
 
 diff_pylint_report: pylint_report.txt
-	diff-quality --compare-branch main --violations=pylint pylint_report.txt
+	diff-quality --compare-branch=main --violations=pylint pylint_report.txt
 
 .coverage: testcov
 
@@ -125,23 +133,23 @@ coverage-report: .coverage
 	coverage report
 
 diff-cover: coverage.xml
-	diff-cover --compare-branch main $^
+	diff-cover --compare-branch=main $^
 
 diff-cover.html: coverage.xml
 	diff-cover --compare-branch main $^ --html-report $@
 
-## test        : run the ${MODULE} test suite
+## test                   : run the cwlupgrader test suite
 test: $(PYSOURCES)
-	python setup.py test
+	python -m pytest -rs
 
-## testcov     : run the ${MODULE} test suite and collect coverage
+## testcov                : run the cwlupgrader test suite and collect coverage
 testcov: $(PYSOURCES)
 	python setup.py test --addopts "--cov" ${PYTEST_EXTRA}
 
 sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
 
-## sloccount   : count lines of code
+## sloccount              : count lines of code
 sloccount: $(PYSOURCES) Makefile
 	sloccount $^
 
@@ -163,7 +171,7 @@ pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
 release-test: FORCE
-	git diff-index --quiet HEAD -- || ( echo You have uncommited changes, please commit them and try again; false )
+	git diff-index --quiet HEAD -- || ( echo You have uncommitted changes, please commit them and try again; false )
 	./release-test.sh
 
 release: release-test
