@@ -73,6 +73,22 @@ def test_v1_1_to_v1_2(tmp_path: Path) -> None:
     assert upgraded == expected
 
 
+def test_v1_2_to_v1_2(tmp_path: Path) -> None:
+    """CWL v1.2 to CWL v1.2 no change test."""
+    doc = load_cwl_document(get_data("testdata/v1.2/networkaccess.cwl"))
+    upgraded = upgrade_document(doc, str(tmp_path), "v1.2")
+    expected = load_cwl_document(get_data("testdata/v1.2/networkaccess.cwl"))
+    assert upgraded == expected
+
+
+def test_v1_2_to_latest(tmp_path: Path) -> None:
+    """CWL v1.2 to latest no change test."""
+    doc = load_cwl_document(get_data("testdata/v1.2/networkaccess.cwl"))
+    upgraded = upgrade_document(doc, str(tmp_path), "latest")
+    expected = load_cwl_document(get_data("testdata/v1.2/networkaccess.cwl"))
+    assert upgraded == expected
+
+
 def test_packed_graph(tmp_path: Path) -> None:
     """Test packed document with $graph."""
     main(

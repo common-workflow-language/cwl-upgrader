@@ -12,9 +12,10 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
 
+from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
+
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
-from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -45,6 +46,11 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--dir", help="Directory in which to save converted files", default=Path.cwd()
+    )
+    parser.add_argument(
+        "--always-write",
+        help="Always write a file, even if no changes were made.",
+        action="store_true",
     )
     parser.add_argument(
         "inputs",
@@ -93,7 +99,7 @@ def run(args: argparse.Namespace) -> int:
                 target_version=target_version,
                 imports=imports,
             )
-            if upgraded_document is not None:
+            if upgraded_document is not document or not args.always_write:
                 write_cwl_document(upgraded_document, Path(path).name, args.dir)
     return 0
 
@@ -154,9 +160,9 @@ def upgrade_document(
     elif version == "v1.2":
         if target_version == "v1.2":
             _logger.info("Not upgrading v1.2 document as requested.")
-            return
+            return document
         elif target_version == "latest":
-            return
+            return document
     else:
         _logger.error(f"Unknown cwlVersion in source document: {version}")
         return
