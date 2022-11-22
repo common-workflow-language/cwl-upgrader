@@ -199,7 +199,12 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
     path = Path(dirname) / name
     with open(path, "w") as handle:
         if "cwlVersion" in document:
-            handle.write("#!/usr/bin/env cwl-runner\n")
+            if not (
+                document.ca
+                and document.ca.comment
+                and "cwl-runner" in document.ca.comment[1][0].value
+            ):
+                handle.write("#!/usr/bin/env cwl-runner\n")
         yaml.dump(document, stream=handle)
     if "cwlVersion" in document:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -249,12 +254,13 @@ def v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
 def v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
     """CWL v1.0.x to v1.2 transformation."""
     document = v1_0_to_v1_1(document, outdir)
-    document["cwlVersion"] = "v1.2"
+    document = v1_1_to_v1_2(document, outdir)
     return document
 
 
 def v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
     """CWL v1.1 to v1.2 transformation."""
+    document = _v1_1_to_v1_2(document, outdir)
     document["cwlVersion"] = "v1.2"
     return document
 
@@ -350,6 +356,10 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
                             _v1_0_to_v1_1(process, outdir)
                             if "cwlVersion" in process:
                                 del process["cwlVersion"]
+                        elif isinstance(entry["run"], str) and "#" not in entry["run"]:
+                            path = Path(document.lc.filename).parent / entry["run"]
+                            process = v1_0_to_v1_1(load_cwl_document(str(path)), outdir)
+                            write_cwl_document(process, path.name, outdir)
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
                     with SourceLine(steps, step_name, Exception):
@@ -413,10 +423,62 @@ def _v1_0_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
 
 
 def _v1_0_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
-    return _v1_0_to_v1_1(document, outdir)  # nothing needs doing for v1.2
+    document = _v1_0_to_v1_1(document, outdir)
+    return _v1_1_to_v1_2(document, outdir)
 
 
 def _v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
+    if "class" in document:
+        if document["class"] == "Workflow":
+            steps = document["steps"]
+            if isinstance(steps, MutableSequence):
+                for index, entry in enumerate(steps):
+                    with SourceLine(steps, index, Exception):
+                        if "run" in entry and isinstance(entry["run"], CommentedMap):
+                            process = entry["run"]
+                            _v1_1_to_v1_2(process, outdir)
+                            if "cwlVersion" in process:
+                                del process["cwlVersion"]
+
+                        elif isinstance(entry["run"], str) and "#" not in entry["run"]:
+                            if hasattr(document.lc, "filename"):
+                                dirname = Path(document.lc.filename).parent
+                            else:
+                                dirname = Path(outdir)
+                            path = dirname / entry["run"]
+                            process = v1_1_to_v1_2(load_cwl_document(str(path)), outdir)
+                            write_cwl_document(process, path.name, outdir)
+            elif isinstance(steps, MutableMapping):
+                for step_name in steps:
+                    with SourceLine(steps, step_name, Exception):
+                        entry = steps[step_name]
+                        if "run" in entry:
+                            if isinstance(entry["run"], CommentedMap):
+                                process = entry["run"]
+                                _v1_1_to_v1_2(process, outdir)
+                                if "cwlVersion" in process:
+                                    del process["cwlVersion"]
+                            elif (
+                                isinstance(entry["run"], str)
+                                and "#" not in entry["run"]
+                            ):
+                                if hasattr(document.lc, "filename"):
+                                    dirname = Path(document.lc.filename).parent
+                                else:
+                                    dirname = Path(outdir)
+                                path = dirname / entry["run"]
+                                process = v1_1_to_v1_2(
+                                    load_cwl_document(str(path)), outdir
+                                )
+                                write_cwl_document(process, path.name, outdir)
+                            elif isinstance(entry["run"], str) and "#" in entry["run"]:
+                                pass  # reference to $graph entry
+                            else:
+                                raise Exception(
+                                    "'run' entry was neither a CWL Process nor "
+                                    "a path to one: %s.",
+                                    entry["run"],
+                                )
     return document
 
 
@@ -445,10 +507,10 @@ def cleanup_v1_0_input_bindings(document: Dict[str, Any]) -> None:
 
 
 def move_up_loadcontents(document: Dict[str, Any]) -> None:
-    """'loadContents' is promoted up a level in CWL v1.1."""
+    """Promote 'loadContents' up a level for CWL v1.1."""
 
     def cleanup(inp: Dict[str, Any]) -> None:
-        """Move loadContents to the preferred location"""
+        """Move loadContents to the preferred location."""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
             for field in list(bindings.keys()):
