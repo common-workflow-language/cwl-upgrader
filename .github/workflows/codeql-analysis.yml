@@ -2,14 +2,23 @@ name: "Code scanning - action"
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   schedule:
     - cron: '0 1 * * 4'
+
+concurrency:
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CodeQL-Build:
 
     runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
 
     steps:
     - name: Checkout repository
