@@ -13,7 +13,7 @@ PYTEST_RUNNER = ["pytest-runner", "pytest-cov"] if NEEDS_PYTEST else []
 
 setup(
     name="cwl-upgrader",
-    version="1.2.5",
+    version="1.2.6",
     description="Common Workflow Language standalone document upgrader",
     long_description=open(README).read(),
     author="Common Workflow Language contributors",
@@ -27,9 +27,9 @@ setup(
     package_data={"cwlupgrader.tests": ["../testdata/**/*.cwl"]},
     install_requires=[
         "setuptools",
-        "ruamel.yaml >= 0.16.0, < 0.17.22;python_version>='3.10'",
-        "ruamel.yaml >= 0.15.98, < 0.17.22;python_version>='3.9'",
-        "ruamel.yaml >= 0.15.78, < 0.17.22;python_version>='3.8'",
+        "ruamel.yaml >= 0.16.0, < 0.17.23;python_version>='3.10'",
+        "ruamel.yaml >= 0.15.98, < 0.17.23;python_version>='3.9'",
+        "ruamel.yaml >= 0.15.78, < 0.17.23;python_version>='3.8'",
         "ruamel.yaml >= 0.15.71, < 0.17.23",
         "schema_salad",
     ],
