@@ -100,11 +100,10 @@ def test_packed_graph(tmp_path: Path) -> None:
         shallow=False,
     )
 
+
 def test_multi_version_upgrade_external_steps(tmp_path: Path) -> None:
     """Test 1.0 to 1.2 upgrade of Workflow with external steps."""
-    main(
-        [f"--dir={tmp_path}", get_data("testdata/v1.0/1st-workflow.cwl")]
-    )
+    main([f"--dir={tmp_path}", get_data("testdata/v1.0/1st-workflow.cwl")])
     assert filecmp.cmp(
         get_data("testdata/v1.2/arguments.cwl"),
         tmp_path / "arguments.cwl",
