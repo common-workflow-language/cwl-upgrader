@@ -24,7 +24,7 @@ _logger.setLevel(logging.INFO)
 
 yaml = ruamel.yaml.main.YAML(typ="rt")
 yaml.allow_duplicate_keys = True
-yaml.preserve_quotes = True  # type: ignore
+yaml.preserve_quotes = True
 yaml.default_flow_style = False
 
 
