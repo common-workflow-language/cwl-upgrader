@@ -172,7 +172,7 @@ mypy_3.6: $(filter-out setup.py,$(PYSOURCES))
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy --python-version 3.6 $^
 
 shellcheck: FORCE
-	shellcheck testing.sh release-test.sh
+	shellcheck conformance-test.sh release-test.sh
 
 pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
