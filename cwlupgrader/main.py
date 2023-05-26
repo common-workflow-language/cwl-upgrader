@@ -12,9 +12,10 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
 
+from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
+
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
-from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -47,6 +48,11 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--dir", help="Directory in which to save converted files.", default=Path.cwd()
+    )
+    parser.add_argument(
+        "--always-write",
+        help="Always write a file, even if no changes were made.",
+        action="store_true",
     )
     parser.add_argument(
         "inputs",
@@ -102,7 +108,8 @@ def run(args: argparse.Namespace) -> int:
                 target_version=target_version,
                 imports=imports,
             )
-            write_cwl_document(upgraded_document, current_out_dir / (path.name))
+            if upgraded_document is not document or not args.always_write:
+                write_cwl_document(upgraded_document, current_out_dir / path.name)
     return 0
 
 
@@ -119,7 +126,11 @@ def upgrade_document(
     if target_version not in supported_versions:
         _logger.error(f"Unsupported target cwlVersion: {target_version}")
         return
+
     version = document["cwlVersion"]
+    main_updater = None
+    inner_updater = None
+
     if version == "cwl:draft-3" or version == "draft-3":
         if target_version == "v1.0":
             main_updater = draft3_to_v1_0
@@ -137,7 +148,7 @@ def upgrade_document(
             pass  # does not happen
     elif version == "v1.0":
         if target_version == "v1.0":
-            _logger.info("Skipping v1.0 document as requested.")
+            _logger.info("Not upgrading v1.0 document as requested.")
             return
         elif target_version == "v1.1":
             main_updater = v1_0_to_v1_1
@@ -152,7 +163,7 @@ def upgrade_document(
             pass  # does not happen
     elif version == "v1.1":
         if target_version == "v1.1":
-            _logger.info("Skipping v1.1 document as requested.")
+            _logger.info("Not upgrading v1.1 document as requested.")
             return
         elif target_version == "v1.2":
             main_updater = v1_1_to_v1_2
@@ -160,10 +171,20 @@ def upgrade_document(
         elif target_version == "latest":
             main_updater = v1_1_to_v1_2
             inner_updater = _v1_1_to_v1_2
-        else:
-            pass  # does not happen? How to do the case that base version is v1.0?
+    elif version == "v1.2":
+        if target_version == "v1.2":
+            _logger.info("Not upgrading v1.2 document as requested.")
+            return document
+        elif target_version == "latest":
+            return document
     else:
-        _logger.error(f"Unsupported cwlVersion: {version}")
+        _logger.error(f"Unknown cwlVersion in source document: {version}")
+        return
+
+    if main_updater is None or inner_updater is None:
+        _logger.error(f"Cannot downgrade from cwlVersion {version} to {target_version}")
+        return
+
     process_imports(document, imports, inner_updater, output_dir, root_dir)
     return main_updater(document, output_dir, root_dir)
 
@@ -191,7 +212,12 @@ def write_cwl_document(document: Any, path: Path) -> None:
     ruamel.yaml.scalarstring.walk_tree(document)
     with open(path, "w") as handle:
         if "cwlVersion" in document:
-            handle.write("#!/usr/bin/env cwl-runner\n")
+            if not (
+                document.ca
+                and document.ca.comment
+                and "cwl-runner" in document.ca.comment[1][0].value
+            ):
+                handle.write("#!/usr/bin/env cwl-runner\n")
         yaml.dump(document, stream=handle)
     if "cwlVersion" in document:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -254,12 +280,13 @@ def v1_0_to_v1_1(document: CommentedMap, out_dir: Path, root_dir: Path) -> Comme
 def v1_0_to_v1_2(document: CommentedMap, out_dir: Path, root_dir: Path) -> CommentedMap:
     """CWL v1.0.x to v1.2 transformation."""
     document = v1_0_to_v1_1(document, out_dir, root_dir)
-    document["cwlVersion"] = "v1.2"
+    document = v1_1_to_v1_2(document, out_dir, root_dir)
     return document
 
 
 def v1_1_to_v1_2(document: CommentedMap, out_dir: Path, root_dir: Path) -> CommentedMap:
     """CWL v1.1 to v1.2 transformation."""
+    document = _v1_1_to_v1_2(document, out_dir, root_dir)
     document["cwlVersion"] = "v1.2"
     return document
 
@@ -373,6 +400,12 @@ def _v1_0_to_v1_1(
                             _v1_0_to_v1_1(process, out_dir, root_dir)
                             if "cwlVersion" in process:
                                 del process["cwlVersion"]
+                        elif isinstance(entry["run"], str) and "#" not in entry["run"]:
+                            path = Path(document.lc.filename).parent / entry["run"]
+                            process = v1_0_to_v1_1(
+                                load_cwl_document(str(path)), out_dir, root_dir
+                            )
+                            write_cwl_document(process, path.name, out_dir)
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
                     with SourceLine(steps, step_name, Exception):
@@ -411,13 +444,13 @@ def _v1_0_to_v1_1(
             move_up_loadcontents(document)
             network_access = has_hint_or_req(document, "NetworkAccess")
             listing = has_hint_or_req(document, "LoadListingRequirement")
-            hints = document.get("hints", {})
+            reqs = document.get("requirements", {})
             # TODO: add comments to explain the extra hints
-            if isinstance(hints, MutableSequence):
+            if isinstance(reqs, MutableSequence):
                 if not network_access:
-                    hints.append({"class": "NetworkAccess", "networkAccess": True})
+                    reqs.append({"class": "NetworkAccess", "networkAccess": True})
                 if not listing:
-                    hints.append(
+                    reqs.append(
                         cmap(
                             {
                                 "class": "LoadListingRequirement",
@@ -425,15 +458,15 @@ def _v1_0_to_v1_1(
                             }
                         )
                     )
-            elif isinstance(hints, MutableMapping):
+            elif isinstance(reqs, MutableMapping):
                 if not network_access:
-                    hints["NetworkAccess"] = {"networkAccess": True}
+                    reqs["NetworkAccess"] = {"networkAccess": True}
                 if not listing:
-                    hints["LoadListingRequirement"] = cmap(
+                    reqs["LoadListingRequirement"] = cmap(
                         {"loadListing": "deep_listing"}
                     )
-            if "hints" not in document:
-                document["hints"] = hints
+            if "requirements" not in document:
+                document["requirements"] = reqs
         elif document["class"] == "ExpressionTool":
             move_up_loadcontents(document)
             cleanup_v1_0_input_bindings(document)
@@ -443,12 +476,66 @@ def _v1_0_to_v1_1(
 def _v1_0_to_v1_2(
     document: CommentedMap, out_dir: Path, root_dir: Path
 ) -> CommentedMap:
-    return _v1_0_to_v1_1(document, out_dir, root_dir)  # nothing needs doing for v1.2
+    document = _v1_0_to_v1_1(document, out_dir, root_dir)
+    return _v1_1_to_v1_2(document, out_dir, root_dir)
 
 
 def _v1_1_to_v1_2(
     document: CommentedMap, out_dir: Path, root_dir: Path
 ) -> CommentedMap:
+    if "class" in document:
+        if document["class"] == "Workflow":
+            steps = document["steps"]
+            if isinstance(steps, MutableSequence):
+                for index, entry in enumerate(steps):
+                    with SourceLine(steps, index, Exception):
+                        if "run" in entry and isinstance(entry["run"], CommentedMap):
+                            process = entry["run"]
+                            _v1_1_to_v1_2(process, out_dir)
+                            if "cwlVersion" in process:
+                                del process["cwlVersion"]
+
+                        elif isinstance(entry["run"], str) and "#" not in entry["run"]:
+                            if hasattr(document.lc, "filename"):
+                                dirname = Path(document.lc.filename).parent
+                            else:
+                                dirname = Path(out_dir)
+                            path = dirname / entry["run"]
+                            process = v1_1_to_v1_2(
+                                load_cwl_document(str(path)), out_dir, root_dir
+                            )
+                            write_cwl_document(process, path.name, out_dir, root_dir)
+            elif isinstance(steps, MutableMapping):
+                for step_name in steps:
+                    with SourceLine(steps, step_name, Exception):
+                        entry = steps[step_name]
+                        if "run" in entry:
+                            if isinstance(entry["run"], CommentedMap):
+                                process = entry["run"]
+                                _v1_1_to_v1_2(process, out_dir, root_dir)
+                                if "cwlVersion" in process:
+                                    del process["cwlVersion"]
+                            elif (
+                                isinstance(entry["run"], str)
+                                and "#" not in entry["run"]
+                            ):
+                                if hasattr(document.lc, "filename"):
+                                    dirname = Path(document.lc.filename).parent
+                                else:
+                                    dirname = Path(out_dir, root_dir)
+                                path = dirname / entry["run"]
+                                process = v1_1_to_v1_2(
+                                    load_cwl_document(str(path)), out_dir, root_dir
+                                )
+                                write_cwl_document(process, out_dir / path.name)
+                            elif isinstance(entry["run"], str) and "#" in entry["run"]:
+                                pass  # reference to $graph entry
+                            else:
+                                raise Exception(
+                                    "'run' entry was neither a CWL Process nor "
+                                    "a path to one: %s.",
+                                    entry["run"],
+                                )
     return document
 
 
@@ -477,10 +564,10 @@ def cleanup_v1_0_input_bindings(document: Dict[str, Any]) -> None:
 
 
 def move_up_loadcontents(document: Dict[str, Any]) -> None:
-    """'loadContents' is promoted up a level in CWL v1.1."""
+    """Promote 'loadContents' up a level for CWL v1.1."""
 
     def cleanup(inp: Dict[str, Any]) -> None:
-        """Move loadContents to the preferred location"""
+        """Move loadContents to the preferred location."""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
             for field in list(bindings.keys()):

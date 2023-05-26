@@ -6,10 +6,6 @@ $graph:
   hints:
     ResourceRequirement:
       ramMin: 8
-    NetworkAccess:
-      networkAccess: true
-    LoadListingRequirement:
-      loadListing: deep_listing
   inputs:
     text:
       type: string
@@ -24,16 +20,17 @@ $graph:
   baseCommand: echo
   stdout: out.txt
 
+  requirements:
+    NetworkAccess:
+      networkAccess: true
+    LoadListingRequirement:
+      loadListing: deep_listing
 - id: cat
   class: CommandLineTool
   hints:
     ResourceRequirement:
       ramMin: 8
 
-    NetworkAccess:
-      networkAccess: true
-    LoadListingRequirement:
-      loadListing: deep_listing
   inputs:
     file1:
       type: File
@@ -53,6 +50,11 @@ $graph:
   baseCommand: cat
   stdout: out.txt
 
+  requirements:
+    NetworkAccess:
+      networkAccess: true
+    LoadListingRequirement:
+      loadListing: deep_listing
 - class: Workflow
   id: collision
 

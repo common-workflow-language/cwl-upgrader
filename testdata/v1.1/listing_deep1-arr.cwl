@@ -1,12 +1,12 @@
 #!/usr/bin/env cwl-runner
 class: CommandLineTool
-cwlVersion: v1.2
+cwlVersion: v1.1
 requirements:
-  LoadListingRequirement:
-    loadListing: deep_listing
-  InlineJavascriptRequirement: {}
-  NetworkAccess:
+  - class: InlineJavascriptRequirement
+  - class: NetworkAccess
     networkAccess: true
+  - class: LoadListingRequirement
+    loadListing: deep_listing
 inputs:
   d: Directory
 outputs:

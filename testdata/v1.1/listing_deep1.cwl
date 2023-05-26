@@ -5,6 +5,8 @@ requirements:
   LoadListingRequirement:
     loadListing: deep_listing
   InlineJavascriptRequirement: {}
+  NetworkAccess:
+    networkAccess: true
 inputs:
   d: Directory
 outputs:
