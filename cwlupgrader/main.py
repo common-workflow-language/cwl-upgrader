@@ -12,10 +12,9 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
 
-from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
-
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
+from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
@@ -203,7 +202,7 @@ def load_cwl_document(path: Union[str, Path]) -> Any:
 
 
 def write_cwl_document(document: Any, path: Path) -> None:
-    """
+    r"""
     Serialize the document using the Ruamel YAML round trip dumper.
 
     Will also prepend "#!/usr/bin/env cwl-runner\n" and
@@ -294,7 +293,7 @@ def v1_1_to_v1_2(document: CommentedMap, out_dir: Path, root_dir: Path) -> Comme
 def draft3_to_v1_0(
     document: CommentedMap, out_dir: Path, root_dir: Path
 ) -> CommentedMap:
-    """Transformation loop."""
+    """Transform loop for draft-3 to v1.0."""
     _draft3_to_v1_0(document, out_dir, root_dir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
@@ -312,14 +311,14 @@ def draft3_to_v1_0(
 def draft3_to_v1_1(
     document: CommentedMap, out_dir: Path, root_dir: Path
 ) -> CommentedMap:
-    """transformation loop."""
+    """Transform loop for draft-3 to v1.1."""
     return v1_0_to_v1_1(draft3_to_v1_0(document, out_dir, root_dir), out_dir, root_dir)
 
 
 def draft3_to_v1_2(
     document: CommentedMap, out_dir: Path, root_dir: Path
 ) -> CommentedMap:
-    """transformation loop."""
+    """Transform loop for draft-3 to v1.2."""
     return v1_1_to_v1_2(
         v1_0_to_v1_1(draft3_to_v1_0(document, out_dir, root_dir), out_dir, root_dir),
         out_dir,
@@ -405,7 +404,7 @@ def _v1_0_to_v1_1(
                             process = v1_0_to_v1_1(
                                 load_cwl_document(str(path)), out_dir, root_dir
                             )
-                            write_cwl_document(process, path.name, out_dir)
+                            write_cwl_document(process, out_dir / path.name)
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
                     with SourceLine(steps, step_name, Exception):
@@ -491,7 +490,7 @@ def _v1_1_to_v1_2(
                     with SourceLine(steps, index, Exception):
                         if "run" in entry and isinstance(entry["run"], CommentedMap):
                             process = entry["run"]
-                            _v1_1_to_v1_2(process, out_dir)
+                            _v1_1_to_v1_2(process, out_dir, root_dir)
                             if "cwlVersion" in process:
                                 del process["cwlVersion"]
 
@@ -504,7 +503,7 @@ def _v1_1_to_v1_2(
                             process = v1_1_to_v1_2(
                                 load_cwl_document(str(path)), out_dir, root_dir
                             )
-                            write_cwl_document(process, path.name, out_dir, root_dir)
+                            write_cwl_document(process, out_dir / path.name)
             elif isinstance(steps, MutableMapping):
                 for step_name in steps:
                     with SourceLine(steps, step_name, Exception):
