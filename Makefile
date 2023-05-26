@@ -28,7 +28,7 @@ EXTRAS=
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
 DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
-	isort wheel autoflake flake8-bugbear pyupgrade bandit \
+	isort wheel autoflake flake8-bugbear pyupgrade bandit build\
 	-rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
@@ -57,13 +57,14 @@ install: FORCE
 
 ## dev                    : install the cwlupgrader package in dev mode
 dev: install-dep
+	pip install -U pip setuptools wheel
 	pip install -e .$(EXTRAS)
 
 ## dist                   : create a module package for distribution
 dist: dist/${MODULE}-$(VERSION).tar.gz
 
 dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
-	python setup.py sdist bdist_wheel
+	python -m build
 
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
@@ -74,7 +75,7 @@ clean: FORCE
 
 # Linting and code style related targets
 ## sort_import            : sorting imports using isort: https://github.com/timothycrosley/isort
-sort_imports: $(PYSOURCES)
+sort_imports: $(PYSOURCES) mypy-stubs
 	isort $^
 
 remove_unused_imports: $(PYSOURCES)
@@ -98,10 +99,10 @@ codespell:
 
 ## format                 : check/fix all code indentation and formatting (runs black)
 format:
-	black setup.py cwlupgrader tests
+	black setup.py cwlupgrader tests mypy-stubs
 
 format-check:
-	black --diff --check cwlupgrader setup.py
+	black --diff --check cwlupgrader setup.py mypy-stubs
 
 ## pylint                 : run static code analysis on Python code
 pylint: $(PYSOURCES)
@@ -136,11 +137,11 @@ diff-cover: coverage.xml
 	diff-cover --compare-branch=main $^
 
 diff-cover.html: coverage.xml
-	diff-cover --compare-branch main $^ --html-report $@
+	diff-cover --compare-branch=main $^ --html-report $@
 
 ## test                   : run the cwlupgrader test suite
 test: $(PYSOURCES)
-	python -m pytest -rs
+	python -m pytest -rs ${PYTEST_EXTRA}
 
 ## testcov                : run the cwlupgrader test suite and collect coverage
 testcov: $(PYSOURCES)
@@ -187,8 +188,8 @@ release: release-test
 		twine upload testenv2/src/${MODULE}/dist/* && \
 		git tag v${VERSION} && git push --tags
 
-flake8: $(PYSOURCES)
-	flake8 $^
+flake8: FORCE
+	flake8 $(PYSOURCES)
 
 FORCE:
 
