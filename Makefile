@@ -167,6 +167,12 @@ mypy: $(PYSOURCES)
 	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
 
+mypy_3.6: $(filter-out setup.py,$(PYSOURCES))
+	MYPYPATH=$$MYPYPATH:mypy-stubs mypy --python-version 3.6 $^
+
+shellcheck: FORCE
+	shellcheck testing.sh release-test.sh
+
 pyupgrade: $(PYSOURCES)
 	pyupgrade --exit-zero-even-if-changed --py36-plus $^
 
