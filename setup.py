@@ -30,7 +30,7 @@ setup(
         "ruamel.yaml >= 0.16.0, < 0.17.27;python_version>='3.10'",
         "ruamel.yaml >= 0.15.98, < 0.17.27;python_version>='3.9'",
         "ruamel.yaml >= 0.15.78, < 0.17.27;python_version>='3.8'",
-        "ruamel.yaml >= 0.15.71, < 0.17.29",
+        "ruamel.yaml >= 0.15.71, < 0.17.31",
         "schema_salad",
     ],
     entry_points={"console_scripts": ["cwl-upgrader = cwlupgrader.main:main"]},
