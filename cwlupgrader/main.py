@@ -737,7 +737,7 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
                 document[section] = new_section
 
 
-def shorten_type(type_obj: List[Any]) -> Union[str, List[Any]]:
+def shorten_type(type_obj: Union[str, List[Any]]) -> Union[str, List[Any]]:
     """Transform draft-3 style type declarations into idiomatic v1.0 types."""
     if isinstance(type_obj, str) or not isinstance(type_obj, Sequence):
         return type_obj
