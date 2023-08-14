@@ -10,7 +10,7 @@ See https://github.com/sbg/sevenbridges-cwl-draft2-upgrader for upgrading from `
 It does not check for correctness of the input document, for that one can use
 `the CWL reference implementation <https://github.com/common-workflow-language/cwltool>`_ (``cwltool --validate``).
 
-This is written and tested for Python 3.6, 3.7, 3.8, 3.9, and 3.10.
+This is written and tested for Python 3.8, 3.9, 3.10, 3.11, and 3.12.
 
 Install
 -------
