@@ -28,11 +28,11 @@ EXTRAS=
 # `[[` conditional expressions.
 PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
 DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
-	isort wheel autoflake flake8-bugbear pyupgrade bandit build\
-	-rtest-requirements.txt -rmypy-requirements.txt
+	isort wheel autoflake flake8-bugbear pyupgrade bandit build \
+	auto-walrus -rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2.7  # please also update setup.py
+VERSION=2.0.0  # please also update setup.py
 
 ## all                    : default task (install cwl-upgrader in dev mode)
 all: dev
@@ -160,22 +160,14 @@ list-author-emails:
 
 mypy3: mypy
 mypy: $(PYSOURCES)
-	if ! test -f $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))')/py.typed ; \
-	then \
-		rm -Rf mypy-stubs/ruamel/yaml ; \
-		ln -s $(shell python3 -c 'import ruamel.yaml; import os.path; print(os.path.dirname(ruamel.yaml.__file__))') \
-			mypy-stubs/ruamel/ ; \
-	fi  # if minimally required ruamel.yaml version is 0.15.99 or greater, than the above can be removed
 	MYPYPATH=$$MYPYPATH:mypy-stubs mypy $^
-
-mypy_3.6: $(filter-out setup.py,$(PYSOURCES))
-	MYPYPATH=$$MYPYPATH:mypy-stubs mypy --python-version 3.6 $^
 
 shellcheck: FORCE
 	shellcheck conformance-test.sh release-test.sh
 
 pyupgrade: $(PYSOURCES)
-	pyupgrade --exit-zero-even-if-changed --py36-plus $^
+	pyupgrade --exit-zero-even-if-changed --py38-plus $^
+	auto-walrus $^
 
 release-test: FORCE
 	git diff-index --quiet HEAD -- || ( echo You have uncommitted changes, please commit them and try again; false )
