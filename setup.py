@@ -27,7 +27,7 @@ setup(
     package_data={"cwlupgrader.tests": ["../testdata/**/*.cwl"]},
     install_requires=[
         "setuptools",
-        "ruamel.yaml >= 0.16.0, < 0.18",
+        "ruamel.yaml >= 0.16.0, < 0.19",
         "schema_salad",
     ],
     entry_points={"console_scripts": ["cwl-upgrader = cwlupgrader.main:main"]},
