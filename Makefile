@@ -32,7 +32,7 @@ DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox virtualenv-pyenv \
 	auto-walrus -rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2.11  # please also update pyproject.toml
+VERSION=$(shell grep __version__ cwlupgrader/__init__.py  | awk -F\" '{ print $$2 }')
 
 ## all                    : default task (install cwl-upgrader in dev mode)
 all: dev
