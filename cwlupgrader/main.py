@@ -12,10 +12,9 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
 
-from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
-
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
+from schema_salad.sourceline import SourceLine, add_lc_filename, cmap
 
 _logger = logging.getLogger("cwl-upgrader")  # pylint: disable=invalid-name
 defaultStreamHandler = logging.StreamHandler()  # pylint: disable=invalid-name
