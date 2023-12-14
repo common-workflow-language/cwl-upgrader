@@ -26,13 +26,13 @@ EXTRAS=
 
 # `SHELL=bash` doesn't work for some, so don't use BASH-isms like
 # `[[` conditional expressions.
-PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py) setup.py
-DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox tox-pyenv \
+PYSOURCES=$(wildcard cwlupgrader/**.py tests/*.py)
+DEVPKGS=diff_cover black pylint pep257 pydocstyle flake8 tox virtualenv-pyenv \
 	isort wheel autoflake flake8-bugbear pyupgrade bandit build \
 	auto-walrus -rtest-requirements.txt -rmypy-requirements.txt
 DEBDEVPKGS=pylint python3-coverage sloccount \
 	   python3-flake8 shellcheck
-VERSION=1.2.10  # please also update setup.py
+VERSION=1.2.10  # please also update setup.cfg
 
 ## all                    : default task (install cwl-upgrader in dev mode)
 all: dev
@@ -69,7 +69,6 @@ dist/${MODULE}-$(VERSION).tar.gz: $(SOURCES)
 ## clean                  : clean up all temporary / machine-generated files
 clean: FORCE
 	rm -f ${MODILE}/*.pyc tests/*.pyc
-	python setup.py clean --all || true
 	rm -Rf .coverage
 	rm -f diff-cover.html
 
@@ -87,7 +86,7 @@ pydocstyle: $(PYSOURCES)
 	pydocstyle --add-ignore=D100,D101,D102,D103 $^ || true
 
 pydocstyle_report.txt: $(PYSOURCES)
-	pydocstyle setup.py $^ > $@ 2>&1 || true
+	pydocstyle $^ > $@ 2>&1 || true
 
 ## diff_pydocstyle_report : check Python docstring style for changed files only
 diff_pydocstyle_report: pydocstyle_report.txt
@@ -99,10 +98,10 @@ codespell:
 
 ## format                 : check/fix all code indentation and formatting (runs black)
 format:
-	black setup.py cwlupgrader tests mypy-stubs
+	black cwlupgrader tests mypy-stubs
 
 format-check:
-	black --diff --check cwlupgrader setup.py mypy-stubs
+	black --diff --check cwlupgrader mypy-stubs
 
 ## pylint                 : run static code analysis on Python code
 pylint: $(PYSOURCES)
@@ -145,7 +144,7 @@ test: $(PYSOURCES)
 
 ## testcov                : run the cwlupgrader test suite and collect coverage
 testcov: $(PYSOURCES)
-	python setup.py test --addopts "--cov" ${PYTEST_EXTRA}
+	python -m pytest --cov ${PYTEST_EXTRA}
 
 sloccount.sc: $(PYSOURCES) Makefile
 	sloccount --duplicates --wide --details $^ > $@
@@ -175,7 +174,8 @@ release-test: FORCE
 
 release: release-test
 	. testenv2/bin/activate && \
-		python testenv2/src/${MODULE}/setup.py sdist bdist_wheel && \
+		pip install build && \
+		python -m build testenv2/src/${MODULE} && \
 		pip install twine && \
 		twine upload testenv2/src/${MODULE}/dist/* && \
 		git tag v${VERSION} && git push --tags
