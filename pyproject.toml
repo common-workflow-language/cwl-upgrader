@@ -1,3 +1,65 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "cwl-upgrader"
+version = "1.2.10"  # Also update the Makefile
+authors = [{name = "Common Workflow Language contributors", email = "common-workflow-language@googlegroups.com"}]
+license = {text = "Apache 2.0"}
+description = "Common Workflow Language standalone document upgrader"
+readme = "README.rst"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+requires-python = ">=3.8, <4"
+dependencies = [
+    "setuptools",
+    "ruamel.yaml >= 0.16.0, < 0.19",
+    "schema_salad",
+]
+
+[project.urls]
+Homepage = "https://github.com/common-workflow-language/cwl-upgrader"
+Download = "https://github.com/common-workflow-language/cwl-upgrader"
+
+[project.scripts]
+cwl-upgrader = "cwlupgrader.main:main"
+
+[project.optional-dependencies]
+testing = ["pytest < 7.5.0"]
+
+[tool.aliases]
+test = "pytest"
+
+[tool.setuptools]
+package-dir = {"cwlupgrader.tests" = "tests"}
+packages = ["cwlupgrader", "cwlupgrader.tests"]
+zip-safe = true
+include-package-data = true
+license-files = ["LICENSE.txt"]
+
+[tool.setuptools.package-data]
+"cwlupgrader.tests" = ["../testdata/**/*.cwl"]
+
+[tool.isort]
+multi_line_output = "3"
+include_trailing_comma = "True"
+force_grid_wrap = "0"
+use_parentheses = "True"
+line_length = "88"
