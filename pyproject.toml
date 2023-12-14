@@ -4,18 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cwl-upgrader"
-authors = [{name = "Common Workflow Language contributors", email = "common-workflow-language@googlegroups.com"}]
+authors = [{name = "Common Workflow Language project contributors", email = "common-workflow-language@googlegroups.com"}]
 license = {text = "Apache 2.0"}
-description = "Common Workflow Language standalone document upgrader"
+keywords = ["cwl", "commonwl", "common-workflow-language"]
+description = "Upgrade a CWL tool or workflow document from one version to another"
 readme = "README.rst"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "Intended Audience :: Healthcare Industry",
-    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -23,10 +23,11 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering",
-    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: File Formats",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
 ]
-requires-python = ">=3.8, <4"
+requires-python = ">=3.8"
 dependencies = [
     "setuptools",
     "ruamel.yaml >= 0.16.0, < 0.19",
@@ -35,14 +36,17 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/common-workflow-language/cwl-upgrader"
-Download = "https://github.com/common-workflow-language/cwl-upgrader"
+Homepage = "https://www.commonwl.org"
+Repository = "https://github.com/common-workflow-language/cwl-upgrader"
+Issues = "https://github.com/common-workflow-language/cwl-upgrader/issues"
+Changelog = "https://github.com/common-workflow-language/cwl-upgrader/releases"
+"Related Tools" = "https://www.commonwl.org/tools/"
 
 [project.scripts]
 cwl-upgrader = "cwlupgrader.main:main"
 
 [project.optional-dependencies]
-testing = ["pytest < 7.5.0"]
+testing = ["pytest < 8"]
 
 [tool.aliases]
 test = "pytest"
