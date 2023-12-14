@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cwl-upgrader"
-version = "1.2.11"  # Also update the Makefile
 authors = [{name = "Common Workflow Language contributors", email = "common-workflow-language@googlegroups.com"}]
 license = {text = "Apache 2.0"}
 description = "Common Workflow Language standalone document upgrader"
@@ -33,6 +32,7 @@ dependencies = [
     "ruamel.yaml >= 0.16.0, < 0.19",
     "schema_salad",
 ]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/common-workflow-language/cwl-upgrader"
@@ -53,6 +53,9 @@ packages = ["cwlupgrader", "cwlupgrader.tests"]
 zip-safe = true
 include-package-data = true
 license-files = ["LICENSE.txt"]
+
+[tool.setuptools.dynamic]
+version = {attr = "cwlupgrader.__version__"}
 
 [tool.setuptools.package-data]
 "cwlupgrader.tests" = ["../testdata/**/*.cwl"]
