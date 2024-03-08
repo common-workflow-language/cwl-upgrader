@@ -1,4 +1,5 @@
 """Tests related to the --dir command line option."""
+
 import filecmp
 from pathlib import Path
 
