@@ -534,9 +534,9 @@ def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
                     for req_name in document[extra]:
                         with SourceLine(document[extra], req_name, Exception):
                             if req_name in V1_0_TO_V1_1_REWRITE:
-                                document[extra][
-                                    V1_0_TO_V1_1_REWRITE[req_name]
-                                ] = document[extra].pop(req_name)
+                                document[extra][V1_0_TO_V1_1_REWRITE[req_name]] = (
+                                    document[extra].pop(req_name)
+                                )
                 elif isinstance(document[extra], MutableSequence):
                     for index, entry in enumerate(document[extra]):
                         with SourceLine(document[extra], index, Exception):
