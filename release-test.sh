@@ -7,6 +7,7 @@ export LC_ALL=C
 
 package=cwl-upgrader
 module=cwlupgrader
+norm_name=cwl_upgrader
 extras=
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
@@ -66,8 +67,8 @@ pushd src/${package}
 pip install -rtest-requirements.txt build
 make dist
 make test
-cp dist/${package}*tar.gz ../../../testenv3/
-cp dist/cwl_upgrader*whl ../../../testenv4/
+cp dist/${norm_name}*tar.gz ../../../testenv3/
+cp dist/${norm_name}*whl ../../../testenv4/
 pip uninstall -y ${package} || true; pip uninstall -y ${package} || true; make install
 popd # ../.. no subdir named ${proj} here, safe for py.testing the installed module
 # shellcheck disable=SC2086
@@ -83,12 +84,12 @@ source bin/activate
 rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install setuptools==${setuptoolsver} wheel
-package_tar=$(find . -name "${package}*tar.gz")
+package_tar=$(find . -name "${norm_name}*tar.gz")
 pip install "-r${DIR}/test-requirements.txt" build
 pip install "${package_tar}${extras}"
 mkdir out
-tar --extract --directory=out -z -f ${package}*.tar.gz
-pushd out/${package}*
+tar --extract --directory=out -z -f ${norm_name}*.tar.gz
+pushd out/${norm_name}*
 make dist
 make test
 pip install "-r${DIR}/mypy-requirements.txt"
@@ -109,7 +110,7 @@ source bin/activate
 rm -f lib/python-wheels/setuptools* \
 	&& pip install --force-reinstall -U pip==${pipver} \
         && pip install setuptools==${setuptoolsver} wheel
-pip install "$(ls cwl_upgrader*.whl)${extras}"
+pip install "$(ls ${norm_name}*.whl)${extras}"
 pip install "-r${DIR}/test-requirements.txt"
 mkdir not-${module}
 pushd not-${module}
