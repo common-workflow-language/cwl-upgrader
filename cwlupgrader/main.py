@@ -8,9 +8,9 @@ import os
 import os.path
 import stat
 import sys
-from collections.abc import MutableSequence, Sequence
+from collections.abc import MutableMapping, MutableSequence, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, List, MutableMapping, Optional, Set, Union
+from typing import Any, Callable, Optional, Union
 
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
@@ -27,7 +27,7 @@ yaml.preserve_quotes = True
 yaml.default_flow_style = False
 
 
-def parse_args(args: List[str]) -> argparse.Namespace:
+def parse_args(args: list[str]) -> argparse.Namespace:
     """Argument parser."""
     parser = argparse.ArgumentParser(
         description="Tool to upgrade CWL documents from one version to another. "
@@ -59,7 +59,7 @@ def parse_args(args: List[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def main(args: Optional[List[str]] = None) -> int:
+def main(args: Optional[list[str]] = None) -> int:
     """Hook to set the args."""
     if not args:
         args = sys.argv[1:]
@@ -68,7 +68,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
 def run(args: argparse.Namespace) -> int:
     """Main function."""
-    imports: Set[str] = set()
+    imports: set[str] = set()
     if args.dir and not os.path.exists(args.dir):
         os.makedirs(args.dir)
     for path in args.inputs:
@@ -107,7 +107,7 @@ def upgrade_document(
     document: Any,
     output_dir: str,
     target_version: Optional[str] = "latest",
-    imports: Optional[Set[str]] = None,
+    imports: Optional[set[str]] = None,
 ) -> Any:
     if imports is None:
         imports = set()
@@ -210,7 +210,7 @@ def write_cwl_document(document: Any, name: str, dirname: str) -> None:
 
 
 def process_imports(
-    document: Any, imports: Set[str], updater: Callable[[Any, str], Any], outdir: str
+    document: Any, imports: set[str], updater: Callable[[Any, str], Any], outdir: str
 ) -> None:
     """Find any '$import's and process them."""
     if isinstance(document, CommentedMap):
@@ -481,10 +481,10 @@ def _v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
     return document
 
 
-def cleanup_v1_0_input_bindings(document: Dict[str, Any]) -> None:
+def cleanup_v1_0_input_bindings(document: dict[str, Any]) -> None:
     """In v1.1 Workflow or ExpressionTool level inputBindings are deprecated."""
 
-    def cleanup(inp: Dict[str, Any]) -> None:
+    def cleanup(inp: dict[str, Any]) -> None:
         """Serialize non loadContents fields and add that to the doc."""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
@@ -505,10 +505,10 @@ def cleanup_v1_0_input_bindings(document: Dict[str, Any]) -> None:
             cleanup(inputs[input_name])
 
 
-def move_up_loadcontents(document: Dict[str, Any]) -> None:
+def move_up_loadcontents(document: dict[str, Any]) -> None:
     """Promote 'loadContents' up a level for CWL v1.1."""
 
-    def cleanup(inp: Dict[str, Any]) -> None:
+    def cleanup(inp: dict[str, Any]) -> None:
         """Move loadContents to the preferred location."""
         if "inputBinding" in inp:
             bindings = inp["inputBinding"]
@@ -525,7 +525,7 @@ def move_up_loadcontents(document: Dict[str, Any]) -> None:
             cleanup(inputs[input_name])
 
 
-def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
+def upgrade_v1_0_hints_and_reqs(document: dict[str, Any]) -> None:
     """Rename some pre-v1.1 extensions to their official CWL v1.1 names."""
     for extra in ("requirements", "hints"):
         if extra in document:
@@ -555,7 +555,7 @@ def upgrade_v1_0_hints_and_reqs(document: Dict[str, Any]) -> None:
                     )
 
 
-def has_hint_or_req(document: Dict[str, Any], name: str) -> bool:
+def has_hint_or_req(document: dict[str, Any], name: str) -> bool:
     """Detects an existing named hint or requirement."""
     for extra in ("requirements", "hints"):
         if extra in document:
@@ -571,7 +571,7 @@ def has_hint_or_req(document: Dict[str, Any], name: str) -> bool:
     return False
 
 
-def workflow_clean(document: Dict[str, Any]) -> None:
+def workflow_clean(document: dict[str, Any]) -> None:
     """Transform draft-3 style Workflows to more idiomatic v1.0"""
     input_output_clean(document)
     hints_and_requirements_clean(document)
@@ -652,7 +652,7 @@ def workflow_clean(document: Dict[str, Any]) -> None:
     document["steps"] = new_steps
 
 
-def input_output_clean(document: Dict[str, Any]) -> None:
+def input_output_clean(document: dict[str, Any]) -> None:
     """Transform draft-3 style input/output listings into idiomatic v1.0."""
     for param_type in ["inputs", "outputs"]:
         if param_type not in document:
@@ -701,7 +701,7 @@ def array_type_raise_sf(param: MutableMapping[str, Any]) -> None:
         del typ["secondaryFiles"]
 
 
-def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
+def hints_and_requirements_clean(document: dict[str, Any]) -> None:
     """Transform draft-3 style hints/reqs into idiomatic v1.0 hints/reqs."""
     for section in ["hints", "requirements"]:
         if section in document:
@@ -736,13 +736,13 @@ def hints_and_requirements_clean(document: Dict[str, Any]) -> None:
                 document[section] = new_section
 
 
-def shorten_type(type_obj: Union[str, List[Any]]) -> Union[str, List[Any]]:
+def shorten_type(type_obj: Union[str, list[Any]]) -> Union[str, list[Any]]:
     """Transform draft-3 style type declarations into idiomatic v1.0 types."""
     if isinstance(type_obj, str) or not isinstance(type_obj, Sequence):
         return type_obj
-    new_type = []  # type: List[str]
+    new_type: list[str] = []
     for entry in type_obj:  # find arrays that we can shorten and do so
-        if isinstance(entry, Dict):
+        if isinstance(entry, dict):
             if entry["type"] == "array" and isinstance(entry["items"], str):
                 entry = entry["items"] + "[]"
             elif entry["type"] == "enum":
@@ -759,7 +759,7 @@ def shorten_type(type_obj: Union[str, List[Any]]) -> Union[str, List[Any]]:
     return new_type
 
 
-def clean_secondary_files(document: Dict[str, Any]) -> None:
+def clean_secondary_files(document: dict[str, Any]) -> None:
     """Cleanup for secondaryFiles"""
     if "secondaryFiles" in document:
         for i, sfile in enumerate(document["secondaryFiles"]):
@@ -769,7 +769,7 @@ def clean_secondary_files(document: Dict[str, Any]) -> None:
                 ).replace(".path", ".location")
 
 
-def sort_v1_0(document: Dict[str, Any]) -> CommentedMap:
+def sort_v1_0(document: dict[str, Any]) -> CommentedMap:
     """Sort the sections of the CWL document in a more meaningful order."""
     keyorder = [
         "cwlVersion",
@@ -800,7 +800,7 @@ def sort_v1_0(document: Dict[str, Any]) -> CommentedMap:
     )
 
 
-def sort_enum(enum: Dict[str, Any]) -> Dict[str, Any]:
+def sort_enum(enum: dict[str, Any]) -> dict[str, Any]:
     """Sort the enum type definitions in a more meaningful order."""
     keyorder = ["type", "name", "label", "symbols", "inputBinding"]
     return CommentedMap(
@@ -811,7 +811,7 @@ def sort_enum(enum: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-def sort_input_or_output(io_def: Dict[str, Any]) -> Dict[str, Any]:
+def sort_input_or_output(io_def: dict[str, Any]) -> dict[str, Any]:
     """Sort the input definitions in a more meaningful order."""
     keyorder = [
         "label",
