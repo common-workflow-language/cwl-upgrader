@@ -60,14 +60,14 @@ def parse_args(args: list[str]) -> argparse.Namespace:
 
 
 def main(args: Optional[list[str]] = None) -> int:
-    """Hook to set the args."""
+    """Run with optional arguments override."""
     if not args:
         args = sys.argv[1:]
     return run(parse_args(args))
 
 
 def run(args: argparse.Namespace) -> int:
-    """Main function."""
+    """Run the program using the provided arguments."""
     imports: set[str] = set()
     if args.dir and not os.path.exists(args.dir):
         os.makedirs(args.dir)
@@ -188,7 +188,7 @@ def load_cwl_document(path: str) -> Any:
 
 
 def write_cwl_document(document: Any, name: str, dirname: str) -> None:
-    """
+    r"""
     Serialize the document using the Ruamel YAML round trip dumper.
 
     Will also prepend "#!/usr/bin/env cwl-runner\n" and
@@ -265,7 +265,7 @@ def v1_1_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
 
 
 def draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
-    """Transformation loop."""
+    """Transform a draft3 document to a version 1.0 document."""
     _draft3_to_v1_0(document, outdir)
     if isinstance(document, MutableMapping):
         for key, value in document.items():
@@ -281,12 +281,12 @@ def draft3_to_v1_0(document: CommentedMap, outdir: str) -> CommentedMap:
 
 
 def draft3_to_v1_1(document: CommentedMap, outdir: str) -> CommentedMap:
-    """transformation loop."""
+    """Transform a draft3 document to a version 1.1 document."""
     return v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir)
 
 
 def draft3_to_v1_2(document: CommentedMap, outdir: str) -> CommentedMap:
-    """transformation loop."""
+    """Transform a draft3 document to a version 1.2 document."""
     return v1_1_to_v1_2(v1_0_to_v1_1(draft3_to_v1_0(document, outdir), outdir), outdir)
 
 
@@ -556,7 +556,7 @@ def upgrade_v1_0_hints_and_reqs(document: dict[str, Any]) -> None:
 
 
 def has_hint_or_req(document: dict[str, Any], name: str) -> bool:
-    """Detects an existing named hint or requirement."""
+    """Detect an existing named hint or requirement."""
     for extra in ("requirements", "hints"):
         if extra in document:
             with SourceLine(document, extra, Exception):
@@ -572,7 +572,7 @@ def has_hint_or_req(document: dict[str, Any], name: str) -> bool:
 
 
 def workflow_clean(document: dict[str, Any]) -> None:
-    """Transform draft-3 style Workflows to more idiomatic v1.0"""
+    """Transform draft-3 style Workflows to more idiomatic v1.0."""
     input_output_clean(document)
     hints_and_requirements_clean(document)
     outputs = document["outputs"]
@@ -760,7 +760,7 @@ def shorten_type(type_obj: Union[str, list[Any]]) -> Union[str, list[Any]]:
 
 
 def clean_secondary_files(document: dict[str, Any]) -> None:
-    """Cleanup for secondaryFiles"""
+    """Cleanup for secondaryFiles."""
     if "secondaryFiles" in document:
         for i, sfile in enumerate(document["secondaryFiles"]):
             if "$(" in sfile or "${" in sfile:
