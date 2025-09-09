@@ -5,7 +5,7 @@ from pathlib import Path
 
 from cwlupgrader.main import main
 
-from .util import get_data
+from .util import get_data, get_path
 
 
 def test_draft3_workflow(tmp_path: Path) -> None:
@@ -13,7 +13,7 @@ def test_draft3_workflow(tmp_path: Path) -> None:
     out_dir = tmp_path / "new"
     main([f"--dir={out_dir}", "--v1-only", get_data("testdata/draft-3/wf.cwl")])
     result = filecmp.cmp(
-        get_data("testdata/v1.0/wf.cwl"),
+        get_path("testdata/v1.0/wf.cwl"),
         out_dir / "wf.cwl",
         shallow=False,
     )

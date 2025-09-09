@@ -3,14 +3,14 @@ from pathlib import Path
 
 from cwlupgrader.main import load_cwl_document, main, upgrade_document
 
-from .util import get_data
+from .util import get_data, get_path
 
 
 def test_draft3_workflow(tmp_path: Path) -> None:
     """Basic draft3 to CWL v1.1 test."""
     main([f"--dir={tmp_path}", "--v1-only", get_data("testdata/draft-3/wf.cwl")])
     result = filecmp.cmp(
-        get_data("testdata/v1.0/wf.cwl"),
+        get_path("testdata/v1.0/wf.cwl"),
         tmp_path / "wf.cwl",
         shallow=False,
     )
@@ -27,7 +27,7 @@ def test_draft3_tool_long_form_arrays(tmp_path: Path) -> None:
         ]
     )
     result = filecmp.cmp(
-        get_data("testdata/v1.0/attributor-prok-cheetah.cwl"),
+        get_path("testdata/v1.0/attributor-prok-cheetah.cwl"),
         tmp_path / "attributor-prok-cheetah.cwl",
         shallow=False,
     )
@@ -95,7 +95,7 @@ def test_packed_graph(tmp_path: Path) -> None:
         [f"--dir={tmp_path}", "--v1.1-only", get_data("testdata/v1.0/conflict-wf.cwl")]
     )
     assert filecmp.cmp(
-        get_data("testdata/v1.1/conflict-wf.cwl"),
+        get_path("testdata/v1.1/conflict-wf.cwl"),
         tmp_path / "conflict-wf.cwl",
         shallow=False,
     )
@@ -105,12 +105,12 @@ def test_multi_version_upgrade_external_steps(tmp_path: Path) -> None:
     """Test 1.0 to 1.2 upgrade of Workflow with external steps."""
     main([f"--dir={tmp_path}", get_data("testdata/v1.0/1st-workflow.cwl")])
     assert filecmp.cmp(
-        get_data("testdata/v1.2/arguments.cwl"),
+        get_path("testdata/v1.2/arguments.cwl"),
         tmp_path / "arguments.cwl",
         shallow=False,
     )
     assert filecmp.cmp(
-        get_data("testdata/v1.2/tar-param.cwl"),
+        get_path("testdata/v1.2/tar-param.cwl"),
         tmp_path / "tar-param.cwl",
         shallow=False,
     )
