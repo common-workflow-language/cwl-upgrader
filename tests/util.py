@@ -2,7 +2,6 @@
 
 import atexit
 import os
-import shutil
 from contextlib import ExitStack
 from importlib.resources import as_file, files
 from pathlib import Path
