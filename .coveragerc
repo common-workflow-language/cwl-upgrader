@@ -1,6 +1,9 @@
 [run]
 branch = True
-source = cwlupgrader
+source_pkgs = cwlupgrader
+omit =
+    tests/*
+    */site-packages/cwlupgrader/tests/*
 
 [report]
 exclude_lines =

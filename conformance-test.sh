@@ -84,6 +84,7 @@ fi
 
 CONFORMANCE_TEST1="${SCRIPT_DIRECTORY}/common-workflow-language-main/v1.0/conformance_test_v1_0_to_v1_1.yaml"
 CONFORMANCE_TEST2="${SCRIPT_DIRECTORY}/common-workflow-language-main/v1.0/conformance_test_v1_0_to_v1_2.yaml"
+COVBASE="coverage run --append --rcfile=${SCRIPT_DIRECTORY}/.coveragerc --data-file=${SCRIPT_DIRECTORY}/.coverage -m cwlupgrader"
 
 pushd "${SCRIPT_DIRECTORY}"/common-workflow-language-main/v1.0
 cp -r v1.0 v1.1
@@ -91,14 +92,16 @@ cp -r v1.0 v1.2
 rm v1.1/*.cwl
 rm v1.2/*.cwl
 set +x
-pushd v1.0 ; cwl-upgrader --v1.1-only --dir ../v1.1 --always-write ./*.cwl; popd
-pushd v1.0 ; cwl-upgrader             --dir ../v1.2 --always-write ./*.cwl; popd
+pushd v1.0 ; $COVBASE --v1.1-only --dir ../v1.1 --always-write ./*.cwl; popd
+pushd v1.0 ; $COVBASE             --dir ../v1.2 --always-write ./*.cwl; popd
 set -x
 cp conformance_test_v1.0.yaml "${CONFORMANCE_TEST1}"
 cp conformance_test_v1.0.yaml "${CONFORMANCE_TEST2}"
 sed -i 's=v1.0/=v1.1/=g' "${CONFORMANCE_TEST1}"
 sed -i 's=v1.0/=v1.2/=g' "${CONFORMANCE_TEST2}"
 popd
+coverage report
+coverage xml
 
 cp "${CONFORMANCE_TEST1}" "${CONFORMANCE_TEST1%".yaml"}.cwltest.yaml"
 CONFORMANCE_TEST1="${CONFORMANCE_TEST1%".yaml"}.cwltest.yaml"
@@ -114,7 +117,7 @@ if [[ -n "${EXCLUDE}" ]] ; then
   EXCLUDE_COMMAND="--cwl-exclude=${EXCLUDE}"
 fi
 
-pushd $(dirname "${CONFORMANCE_TEST1}")
+pushd "$(dirname "${CONFORMANCE_TEST1}")"
 set +e
 python3 -m pytest "${CONFORMANCE_TEST1}" -n auto -rs --junit-xml="${SCRIPT_DIRECTORY}"/cwltool_v1.0_to_v1.1_"${CONTAINER}".xml -o junit_suite_name=cwltool_$(echo "${CWLTOOL_OPTIONS}" | tr "[:blank:]-" _) ${EXCLUDE_COMMAND} ; RETURN_CODE1=$?
 
