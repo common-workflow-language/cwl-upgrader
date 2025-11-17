@@ -8,9 +8,9 @@ import os
 import os.path
 import stat
 import sys
-from collections.abc import MutableMapping, MutableSequence, Sequence
+from collections.abc import Callable, MutableMapping, MutableSequence, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 import ruamel.yaml
 from ruamel.yaml.comments import CommentedMap  # for consistent sort order
@@ -59,7 +59,7 @@ def parse_args(args: list[str]) -> argparse.Namespace:
     return parser.parse_args(args)
 
 
-def main(args: Optional[list[str]] = None) -> int:
+def main(args: list[str] | None = None) -> int:
     """Run with optional arguments override."""
     if not args:
         args = sys.argv[1:]
@@ -106,8 +106,8 @@ def run(args: argparse.Namespace) -> int:
 def upgrade_document(
     document: Any,
     output_dir: str,
-    target_version: Optional[str] = "latest",
-    imports: Optional[set[str]] = None,
+    target_version: str | None = "latest",
+    imports: set[str] | None = None,
 ) -> Any:
     if imports is None:
         imports = set()
@@ -736,7 +736,7 @@ def hints_and_requirements_clean(document: dict[str, Any]) -> None:
                 document[section] = new_section
 
 
-def shorten_type(type_obj: Union[str, list[Any]]) -> Union[str, list[Any]]:
+def shorten_type(type_obj: str | list[Any]) -> str | list[Any]:
     """Transform draft-3 style type declarations into idiomatic v1.0 types."""
     if isinstance(type_obj, str) or not isinstance(type_obj, Sequence):
         return type_obj

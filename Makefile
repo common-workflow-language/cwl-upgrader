@@ -165,7 +165,7 @@ shellcheck: FORCE
 	shellcheck conformance-test.sh release-test.sh
 
 pyupgrade: $(PYSOURCES)
-	pyupgrade --exit-zero-even-if-changed --py39-plus $^
+	pyupgrade --exit-zero-even-if-changed --py310-plus $^
 	auto-walrus $^
 
 release-test: FORCE
