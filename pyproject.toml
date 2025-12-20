@@ -29,7 +29,6 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "setuptools",
     "ruamel.yaml >= 0.16.0, < 0.19",
     "schema_salad",
 ]
