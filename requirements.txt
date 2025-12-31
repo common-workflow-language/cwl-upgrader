@@ -1,2 +1,2 @@
-ruamel.yaml >= 0.16.0, < 0.19
+ruamel.yaml >= 0.16.0, < 0.20
 schema-salad

@@ -29,7 +29,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "ruamel.yaml >= 0.16.0, < 0.19",
+    "ruamel.yaml >= 0.16.0, < 0.20",
     "schema_salad",
 ]
 dynamic = ["version"]
