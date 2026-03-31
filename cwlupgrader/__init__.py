@@ -1,3 +1,3 @@
 """Transforms older CWL documents into v1.0+ as idiomatically as possible."""
 
-__version__ = "1.2.14"
+__version__ = "1.2.15"
